@@ -52,33 +52,18 @@ namespace ioDelaunay
                 var firstTri = new Triangle(triVertIdxs, this);
 
                 m_Frontier = new Frontier(firstTri, this);
-
             }
         }
 
-        protected void Legalize(Triangle _triA)
+        protected void LegalizeFrontier(Dictionary<int, FlipInfo> _flipInfoByVertIdx)
         {
-            /*
-            foreach (var edge in _triA.HalfEdges)
+            foreach (var fiData in _flipInfoByVertIdx)
             {
-                if (edge.Twin == null) continue;
-                var vA2 = edge.NextEdge.NextEdge.Origin;
-                var vAB0 = edge.Origin;
-                var vAB1 = edge.NextEdge.Origin;
-                var vB2 = edge.Twin.NextEdge.NextEdge.Origin;
-                Vector2f ccCent;
-                float ccRad;
-
-                if(!Geom.Circumcircle(vA2.Pos, vAB0.Pos, vAB1.Pos, out ccCent, out ccRad))
-                    throw new Exception("TODO - THIS IS PROBABLY A LINE"); //TODO check for line?
-
-                var checkDistSqr = (vB2.Pos - ccCent).sqrMagnitude;
-                if (checkDistSqr >= ccRad) continue;
-                
-                //Flip Edge
-                var eA0 = 
+                if (!m_Frontier.ContainsVert(fiData.Key)) continue;
+                var fPt = m_Frontier.GetHaving(fiData.Key);
+                if (!fiData.Value.IsTriChanged(fPt.TriRightID)) continue;
+                fPt.UpdateFlip(fiData.Value);
             }
-            */
         }
         
         protected override void Algorithm()
@@ -102,7 +87,10 @@ namespace ioDelaunay
                 var tri = AddTriToMesh(ofVertIdx, fntVerts[0].EdgeRight);
                 var newFntPt = m_Frontier.Add(ofVert, tri, fntVerts);
                 
-                // TODO Legalize Tri (Recurse)
+                //Legalize
+                var fiData = Legalize(tri.ID);
+                LegalizeFrontier(fiData);
+                
                 
                 // 3) Walk Left
                 
@@ -120,13 +108,22 @@ namespace ioDelaunay
                     if (debug1.Count != 0)
                         Console.WriteLine(debug1.ToString());
                     if ((angle >= 90f) || (angle < 0d)) break;
+                    
                     tri = AddTriToMesh(fntL.EdgeRight, fntC.EdgeRight);
+                    
+                    
                     m_Frontier.Remove(fntC, tri.GetHalfEdgeWithOrigin(fntL.VertIdx));
+                    
+                    //Legalize
+                    fiData = Legalize(tri.ID);
+                    LegalizeFrontier(fiData);
                     
                     debug1 = m_Frontier.DebugScanForTwin();
                     if (debug1.Count != 0)
                         Console.WriteLine(debug1.ToString());
                 }
+                
+                
                 // 4) Walk Right
                 while (true)
                 {
@@ -147,10 +144,14 @@ namespace ioDelaunay
                     tri = AddTriToMesh(newFntPt.EdgeRight, fntC.EdgeRight);
                     m_Frontier.Remove(fntC, tri.GetHalfEdgeWithOrigin(newFntPt.VertIdx));
                     
+                    //Legalize
+                    fiData = Legalize(tri.ID);
+                    LegalizeFrontier(fiData);
                     debug1 = m_Frontier.DebugScanForTwin();
                     if (debug1.Count != 0)
                         Console.WriteLine(debug1.ToString());
                 }
+                
             }
         }
 
@@ -214,11 +215,29 @@ namespace ioDelaunay
         private class Frontier : DCircleSweepObj
         {
             private SortedList<float, FrontierPt> m_Frontier; //By Theta
+            private Dictionary<int, FrontierPt> m_FrontierByVertIdx;
 
+            public bool ContainsVert(Vertex _vert)
+            {
+                return m_FrontierByVertIdx.ContainsKey(_vert.Idx);
+            }
+
+            public bool ContainsVert(int _vertIdx)
+            {
+                return m_FrontierByVertIdx.ContainsKey(_vertIdx);
+            }
+
+            public FrontierPt GetHaving(int _vertIdx)
+            {
+                return !m_FrontierByVertIdx.ContainsKey(_vertIdx) ? null : m_FrontierByVertIdx[_vertIdx];
+            }
+            
             public Frontier(Triangle _firstTri, CircleSweep _cs)
                 : base(_cs)
             {
                 m_Frontier = new SortedList<float, FrontierPt>();
+                m_FrontierByVertIdx = new Dictionary<int, FrontierPt>();
+                
                 var verts = _firstTri.VertIdxs.Select(_id => CS.m_Vertices[_id]).ToArray();
 
                 var ftPts = _firstTri.Verts.Select(_vert => new FrontierPt(_vert.Idx, _firstTri.GetHalfEdgeWithOrigin(_vert.Idx), CS)).ToArray();
@@ -233,7 +252,11 @@ namespace ioDelaunay
                 Console.WriteLine(ftPts[2].ToString());
 
                 for (int idx = 0; idx < 3; ++idx) //TODO handle same theta
+                {
                     m_Frontier.Add(CS.PolPos(verts[idx]).Theta, ftPts[idx]);
+                    m_FrontierByVertIdx.Add(ftPts[idx].VertIdx, ftPts[idx]);
+                }
+                    
             }
 
             public List<FrontierPt> DebugScanForTwin()
@@ -301,7 +324,8 @@ namespace ioDelaunay
 
                 ftPt.Left = ftLt;
                 ftPt.Right = ftRt;
-                
+
+                m_FrontierByVertIdx.Add(_newVert.Idx, ftPt);
                 m_Frontier.Add(CS.PolPos(_newVert).Theta, ftPt); //TODO add epsilon offset for dupe?
                 
                 debug1 = DebugScanForTwin();
@@ -326,6 +350,7 @@ namespace ioDelaunay
                 
                 var debugCntPre = m_Frontier.Count;
                 m_Frontier.Remove(CS.m_PolPos[_fPt.VertIdx].Theta);
+                m_FrontierByVertIdx.Remove(_fPt.VertIdx);
                 var debugCntPost = m_Frontier.Count;
                 if(debugCntPre == debugCntPost)
                     Console.WriteLine("WTF");
@@ -373,6 +398,9 @@ namespace ioDelaunay
                 public Vertex Vert => CS.m_Vertices[VertIdx];
                 private Guid m_TriRightID;
                 private int m_EdgeRightIdx;
+                
+                public Guid TriRightID => m_TriRightID;
+                public int EdgeRightIdx => m_EdgeRightIdx;
 
                 public FrontierPt(int vertIdx, HalfEdge _edgeRight, CircleSweep _cs)
                     : base(_cs)
@@ -392,6 +420,11 @@ namespace ioDelaunay
                     var v = (Vert ?? (Object) "").ToString();
                     var er = (EdgeRight ?? (Object) "").ToString();
                     return "Fnt Pt v: " + v + " RtV: " + Right.Vert.Idx + " LtV: " + Left.Vert.Idx + " EdgeRt: " + er;
+                }
+
+                public void UpdateFlip(FlipInfo _fi)
+                {
+                    _fi.Update(ref m_TriRightID, ref m_EdgeRightIdx);
                 }
             }
         }
