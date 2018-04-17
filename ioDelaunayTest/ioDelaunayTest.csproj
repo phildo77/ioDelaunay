@@ -4,14 +4,14 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{E3199C4D-A2A8-4AAE-BD56-34D70CEF3195}</ProjectGuid>
+    <ProjectGuid>{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}</ProjectGuid>
+    <ProjectTypeGuids>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ioDelaunay</RootNamespace>
-    <AssemblyName>ioDelaunay</AssemblyName>
+    <RootNamespace>ioDelaunayTest</RootNamespace>
+    <AssemblyName>ioDelaunayTest</AssemblyName>
     <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <LangVersion>6</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -36,22 +36,23 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
-    <Reference Include="System.Drawing" />
     <Reference Include="System.Xml" />
+    <Reference Include="nunit.framework, Version=3.5.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb">
+      <HintPath>packages\NUnit.3.5.0\lib\net45\nunit.framework.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CircleSweep.cs" />
-    <Compile Include="DebugVisualizer.cs" />
-    <Compile Include="DelaunayBase.cs" />
-    <Compile Include="DelaunayBaseOps.cs" />
-    <Compile Include="Geom.cs" />
-    <Compile Include="Mesh.cs" />
+    <Compile Include="Tests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Vectorf\Vectorf.csproj">
+    <ProjectReference Include="..\..\Vectorf\Vectorf.csproj">
       <Project>{6cd06271-bb13-4cc1-a22d-781af5e2264a}</Project>
       <Name>Vectorf</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ioDelaunay.csproj">
+      <Project>{e3199c4d-a2a8-4aae-bd56-34d70cef3195}</Project>
+      <Name>ioDelaunay</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

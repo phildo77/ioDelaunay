@@ -1,237 +1,54 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using Vectorf;
-
-namespace ioDelaunay
+﻿namespace ioDelaunay
 {
-    public abstract class DelaunayBase
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+
+    using Vectorf;
+
+    public abstract partial class DelaunayBase
     {
+        #region Fields
+
         protected readonly Vector2f[] m_Points;
+        protected readonly HashSet<Guid>[] m_TrisContainingVert;
         protected readonly Vertex[] m_Vertices;
-        
+
         protected Dictionary<Guid, Triangle> m_Triangles;
-        
-        public DelaunayBase(Vector2f[] _points)
+        protected HashSet<Guid> m_CheckedTris;
+
+        #endregion Fields
+
+        public List<Triangle> Triangles => m_Triangles.Values.ToList(); //DEBUG TODO
+
+        #region Constructors
+
+        protected DelaunayBase(Vector2f[] _points)
         {
+            m_Triangles = new Dictionary<Guid, Triangle>();
             m_Points = _points;
             m_Vertices = new Vertex[m_Points.Length];
+            m_TrisContainingVert = new HashSet<Guid>[m_Points.Length];
+
+            m_CheckedTris = new HashSet<Guid>();
+
             for (int idx = 0; idx < m_Points.Length; ++idx)
+            {
                 m_Vertices[idx] = new Vertex(idx, this);
-            m_Triangles = new Dictionary<Guid, Triangle>();
+                m_TrisContainingVert[idx] = new HashSet<Guid>();
+            }
         }
 
-        protected abstract void Algorithm();
+        #endregion Constructors
 
+        protected abstract void Algorithm();
+        
         public Mesh Triangulate()
         {
             Algorithm();
             return Mesh;
         }
         
-        protected Triangle AddTriToMesh(int _vertIdx, HalfEdge _joiningEdge)
-        {
-            var newVerts = new[]
-            {
-                _vertIdx,
-                _joiningEdge.NextEdge.OriginIdx,
-                _joiningEdge.OriginIdx
-            };
-            var newTri = new Triangle(newVerts, this);
-            var newEdge = newTri.GetHalfEdgeWithOrigin(newVerts[1]);
-            newEdge.Twin = _joiningEdge;
-            _joiningEdge.Twin = newEdge;
-            var dupes = DebugDupeEdgeCheck(newTri);
-            if (dupes.Count != 0)
-                Console.WriteLine(dupes.ToArray());
-            return newTri;
-
-        }
-
-        
-
-        protected Triangle AddTriToMesh(HalfEdge _leftTwin, HalfEdge _rtTwin)
-        {
-            var newVerts = new[]
-            {
-                _leftTwin.OriginIdx,
-                _rtTwin.NextEdge.OriginIdx,
-                _rtTwin.OriginIdx
-            };
-
-            var newTri = new Triangle(newVerts, this);
-            var newEdgeA = newTri.GetHalfEdgeWithOrigin(newVerts[1]);
-            newEdgeA.Twin = _rtTwin;
-            _rtTwin.Twin = newEdgeA;
-            var newEdgeB = newTri.GetHalfEdgeWithOrigin(newVerts[2]);
-            newEdgeB.Twin = _leftTwin;
-            _leftTwin.Twin = newEdgeB;
-            var dupes = DebugDupeEdgeCheck(newTri);
-            if (dupes.Count != 0)
-                Console.WriteLine(dupes.ToArray());
-            return newTri;
-        }
-        
-        public class FlipInfo
-        {
-            public readonly Dictionary<Guid, EdgeRef[]> EdgeChangeData;
-
-            public FlipInfo(Guid _triAID, Guid _triBID)
-            {
-                EdgeChangeData = new Dictionary<Guid, EdgeRef[]>();
-                EdgeChangeData.Add(_triAID, new EdgeRef[3]);
-                EdgeChangeData.Add(_triBID, new EdgeRef[3]);
-            }
-
-            public void Update(ref Guid _triID, ref int _edgeIdx)
-            {
-                var edgeRefs = EdgeChangeData[_triID];
-                _triID = edgeRefs[_edgeIdx].NewTriID;
-                _edgeIdx = edgeRefs[_edgeIdx].NewEdgeIdx;
-            }
-
-            public bool IsTriChanged(Guid _triID)
-            {
-                return EdgeChangeData.ContainsKey(_triID);
-            }
-                
-            public class EdgeRef
-            {
-                public readonly Guid NewTriID;
-                public readonly int NewEdgeIdx;
-
-                public EdgeRef(Guid _newTriID, int _newEdgeIdx)
-                {
-                    NewTriID = _newTriID;
-                    NewEdgeIdx = _newEdgeIdx;
-                }
-            }
-        }
-
-        //Edge Flip - returns null if not neighbors
-        private FlipInfo FlipEdge(Guid _triAID, Guid _triBID)
-        {
-            
-            var triA = m_Triangles[_triAID];
-            var triB = m_Triangles[_triBID];
-            
-
-            //Find ab edge
-            
-            var eA2 = triA.HalfEdges[0];
-            var firstEdge = eA2;
-            while (true)
-            {
-                if (eA2.Twin != null)
-                    if (eA2.Twin.TriID == _triBID)
-                        break;
-                eA2 = eA2.NextEdge;
-                if (eA2 == firstEdge)
-                    return null;
-            }
-
-            var eA0 = eA2.NextEdge;
-            var eA1 = eA0.NextEdge;
-
-            var eB2 = eA2.Twin;
-            var eB0 = eB2.NextEdge;
-            var eB1 = eB0.NextEdge;
-
-            var newEdgesA = new HalfEdge[3];
-
-            newEdgesA[eA0.Idx] = new HalfEdge(triA, eA0.OriginIdx, this);
-            newEdgesA[eA1.Idx] = new HalfEdge(triA, eA1.OriginIdx, this);
-            newEdgesA[eA2.Idx] = new HalfEdge(triA, eB1.OriginIdx, this);
-
-
-            var newEdgesB = new HalfEdge[3];
-
-            newEdgesB[eB0.Idx] = new HalfEdge(triB, eB0.OriginIdx, this);
-            newEdgesB[eB1.Idx] = new HalfEdge(triB, eB1.OriginIdx, this);
-            newEdgesB[eB2.Idx] = new HalfEdge(triB, eA1.OriginIdx, this);
-            
-
-            newEdgesA[0].Twin = eA0.Twin;
-            newEdgesA[2].Twin = eB1.Twin;
-
-            newEdgesB[0].Twin = eB0.Twin;
-            newEdgesB[2].Twin = eA1.Twin;
-            
-            var fi = new FlipInfo(triA.ID, triB.ID);
-            fi.EdgeChangeData[_triAID][0] = new FlipInfo.EdgeRef(triA.ID, 0);
-            fi.EdgeChangeData[_triAID][1] = new FlipInfo.EdgeRef(triB.ID, 2);
-            fi.EdgeChangeData[_triAID][2] = null;
-
-            fi.EdgeChangeData[_triBID][0] = new FlipInfo.EdgeRef(triB.ID, 0);
-            fi.EdgeChangeData[_triBID][1] = new FlipInfo.EdgeRef(triA.ID, 2);
-            fi.EdgeChangeData[_triBID][2] = null;
-            
-            triA.HalfEdges = newEdgesA;
-            triB.HalfEdges = newEdgesB;
-            
-            newEdgesA[1].Twin = newEdgesB[1];
-            newEdgesB[1].Twin = newEdgesA[1];
-
-            return fi;
-
-        }
-            
-            public Dictionary<int, FlipInfo> Legalize(Guid _startTri)
-            {
-                
-                var flipInfoByVertIdx = new Dictionary<int, FlipInfo>();
-                foreach (var edge in m_Triangles[_startTri].HalfEdges)
-                {
-                    if (edge.Twin == null) continue;
-                    var vA2 = edge.NextEdge.NextEdge.Origin;
-                    var vAB0 = edge.Origin;
-                    var vAB1 = edge.NextEdge.Origin;
-                    var vB2 = edge.Twin.NextEdge.NextEdge.Origin;
-                    Vector2f ccCent;
-                    float ccRad;
-
-                    if(!Geom.Circumcircle(vA2.Pos, vAB0.Pos, vAB1.Pos, out ccCent, out ccRad))
-                        throw new Exception("TODO - THIS IS PROBABLY A LINE"); //TODO check for line?
-
-                    var checkDistSqr = (vB2.Pos - ccCent).sqrMagnitude;
-                    if (checkDistSqr >= ccRad) continue;
-
-                    var vIdx = edge.OriginIdx;
-                    var fi = FlipEdge(edge.TriID, edge.Twin.TriID);
-                    flipInfoByVertIdx.Add(vIdx, fi);
-                    //TODO RECURSE
-                }
-
-                return flipInfoByVertIdx;
-            }
-        
-#if DEBUG
-        private List<HalfEdge> DebugDupeEdgeCheck(Triangle _tri)
-        {
-            var dupes = new List<HalfEdge>();
-            foreach (var hEdgeA in _tri.HalfEdges)
-            {
-                foreach (var tri in m_Triangles)
-                {
-                    if (tri.Key == _tri.ID) continue;
-
-                    foreach (var hEdgeB in tri.Value.HalfEdges)
-                    {
-                        if (hEdgeA.OriginIdx != hEdgeB.OriginIdx)
-                            continue;
-                        if (hEdgeA.NextEdge.OriginIdx != hEdgeB.NextEdge.OriginIdx)
-                            continue;
-                        dupes.Add(hEdgeA);
-                        dupes.Add(hEdgeB);
-                    }
-                }
-            }
-
-            return dupes;
-        }
-#endif
-
         public Mesh Mesh
         {
             get
@@ -239,139 +56,77 @@ namespace ioDelaunay
                 var tris = m_Triangles.Values.ToArray();
                 var triIdxs = new int[m_Triangles.Count * 3];
                 for (int tIdx = 0; tIdx < tris.Length; ++tIdx)
-                    for (int vIdx = 0; vIdx < 3; ++vIdx)
-                        triIdxs[tIdx * 3 + vIdx] = tris[tIdx].HalfEdges[vIdx].OriginIdx;
+                for (int vIdx = 0; vIdx < 3; ++vIdx)
+                    triIdxs[tIdx * 3 + vIdx] = tris[tIdx].HalfEdge(vIdx).OriginIdx;
                 return new Mesh(m_Points, triIdxs);
             }
         }
         
-        protected class Vertex : DelaunayObj
-        {
-            public Vertex(int idx, DelaunayBase _d) : base(_d)
-            {
-                Idx = idx;
-            }
-            
-            #region Fields
-            
-            public int Idx;
+        #region Nested Types
 
-            #endregion Fields
-            
-            public Vector2f Pos => D.m_Points[Idx];
-
-            public override string ToString()
-            {
-                return "Vrt Idx: " + Idx + " Pos: " + Pos;
-            }
-        }
-        
-        protected class Triangle : DelaunayObj
+        public abstract class DelaunayObj
         {
             #region Fields
 
-            //Key is Vertex Origin ID
-            public HalfEdge[] HalfEdges;
-            public readonly Guid ID;
-
-            
-            private readonly Dictionary<int, int> m_EdgeIdxByVertIdx;
+            public readonly DelaunayBase D;
 
             #endregion Fields
 
             #region Constructors
 
-            public Triangle(int[] _vertIdxs, DelaunayBase _dRef) : base(_dRef)
+            public DelaunayObj(DelaunayBase _d)
             {
-                if(_vertIdxs.Length != 3)
-                    throw new Exception("Vert count must be exactly 3");
-
-                //Sort points clockwise
-                var v0 = D.m_Points[_vertIdxs[0]];
-                var v1 = D.m_Points[_vertIdxs[1]];
-                var v2 = D.m_Points[_vertIdxs[2]];
-                var v1Idx = _vertIdxs[1];
-                var v2Idx = _vertIdxs[2];
-
-                if (Vector2f.SignedAngle(v1 - v0, v2 - v0) < 0)
-                {
-                    var vTmpIdx = v1Idx;
-                    v1Idx = v2Idx;
-                    v2Idx = vTmpIdx;
-                }
-                
-                m_EdgeIdxByVertIdx = new Dictionary<int, int>();
-                HalfEdges = new HalfEdge[3];
-
-                ID = Guid.NewGuid();
-
-                D.m_Triangles.Add(ID, this);
-                
-                HalfEdges[0] = new HalfEdge(this, _vertIdxs[0], D);
-                HalfEdges[1] = new HalfEdge(this, v1Idx, D);
-                HalfEdges[2] = new HalfEdge(this, v2Idx, D);
-                
-                m_EdgeIdxByVertIdx.Add(VertIdxs[0], 0);
-                m_EdgeIdxByVertIdx.Add(VertIdxs[1], 1);
-                m_EdgeIdxByVertIdx.Add(VertIdxs[2], 2);
+                D = _d;
             }
-       
+
             #endregion Constructors
-
-            public HalfEdge GetHalfEdgeWithOrigin(int _vertIdx)
-            {
-                return !m_EdgeIdxByVertIdx.ContainsKey(_vertIdx) ? null : HalfEdges[m_EdgeIdxByVertIdx[_vertIdx]];
-            }
-
-            public int GetHalfEdgeIdxWithOrigin(int _vertIdx)
-            {
-                return !m_EdgeIdxByVertIdx.ContainsKey(_vertIdx) ? -1 : m_EdgeIdxByVertIdx[_vertIdx];
-            }
-
-            public int[] VertIdxs => new[]
-            {
-                HalfEdges[0].OriginIdx,
-                HalfEdges[1].OriginIdx,
-                HalfEdges[2].OriginIdx
-            };
-
-            public Vertex[] Verts
-            {
-                get { return VertIdxs.Select(_id => D.m_Vertices[_id]).ToArray(); }
-            }
-            
         }
-        
-        protected class HalfEdge : DelaunayObj
+
+        public class HalfEdge : DelaunayObj
         {
             #region Fields
 
+            public readonly int OriginIdx;
             public readonly Guid TriID;
+
+            public int Idx => D.m_Triangles[TriID].HalfEdgeIdxWithVert(OriginIdx);
+            public Vertex Origin => D.m_Vertices[OriginIdx];
+            public Triangle Tri => D.m_Triangles[TriID];
 
             private Guid m_NeighborID; //Aligned with edge idx
             private int m_TwinIdx; //Aligned with edge idx - this is idx of edge on neighbor
-            
-            public int Idx
+
+            #endregion Fields
+
+            #region Constructors
+
+            public HalfEdge(Triangle _tri, int _originID, DelaunayBase _d)
+                : base(_d)
+            {
+                TriID = _tri.ID;
+                OriginIdx = _originID;
+                Twin = null;
+            }
+
+            #endregion Constructors
+
+            #region Properties
+
+            public HalfEdge NextEdge
             {
                 get
                 {
                     var tri = D.m_Triangles[TriID];
-                    for (int idx = 0; idx < 3; ++idx)
-                        if (tri.HalfEdges[idx] == this)
-                            return idx;
-                    return -1;
+                    var idx = Idx;
+                    return idx == 2 ? tri.HalfEdge(0) : tri.HalfEdge(idx + 1);
                 }
             }
-
-            public readonly int OriginIdx;
-            public Vertex Origin => D.m_Vertices[OriginIdx];
 
             public HalfEdge Twin
             {
                 get
                 {
-                    if (m_NeighborID == Guid.Empty) return null;
-                    return D.m_Triangles[m_NeighborID].HalfEdges[m_TwinIdx];
+                    return m_NeighborID == Guid.Empty ? null : D.m_Triangles[m_NeighborID].HalfEdge(m_TwinIdx);
                 }
 
                 set
@@ -384,40 +139,18 @@ namespace ioDelaunay
                     }
                     m_NeighborID = value.TriID;
                     m_TwinIdx = value.Idx;
-                    if(m_TwinIdx == -1 && m_NeighborID != Guid.Empty)
-                        Console.WriteLine("Debug WTF");
+                    value.m_NeighborID = TriID;
+                    value.m_TwinIdx = Idx;
+                    
+                    //DEBUG TODO
+                    if (value.OriginIdx == OriginIdx)
+                        Console.WriteLine("DEBUG");
                 }
             }
 
-            public HalfEdge NextEdge
-            {
-                get
-                {
-                    var tri = D.m_Triangles[TriID];
-                    var idx = Idx;
-                    return idx == 2 ? tri.HalfEdges[0] : tri.HalfEdges[idx + 1];
-                }
+            #endregion Properties
 
-                set
-                {
-                    var idx = Idx;
-                    D.m_Triangles[TriID].HalfEdges[idx == 2 ? 0 : idx + 1] = value;
-                }
-            }
-
-            #endregion Fields
-
-            #region Constructors
-
-            public HalfEdge(Triangle _tri, int _originID, DelaunayBase _d) : base(_d)
-            {
-                TriID = _tri.ID;
-                OriginIdx = _originID;
-                Twin = null;
-            }
-            #endregion Constructors
-
-            public Triangle Tri => D.m_Triangles[TriID];
+            #region Methods
 
             public override string ToString()
             {
@@ -426,16 +159,168 @@ namespace ioDelaunay
                 return "HlfEdg Org: " + o + " Nxt: " + NextEdge.Origin + " Twin: " + t;
             }
 
+            #endregion Methods
         }
 
-        
-        protected abstract class DelaunayObj
+        public class Triangle : DelaunayObj
         {
-            protected readonly DelaunayBase D;
-            protected DelaunayObj(DelaunayBase _d)
+            #region Fields
+
+            public readonly Guid ID;
+
+            public int[] VertIdxs => new[]
             {
-                D = _d;
+                m_HalfEdges[0].OriginIdx,
+                m_HalfEdges[1].OriginIdx,
+                m_HalfEdges[2].OriginIdx
+            };
+
+            private Dictionary<int, int> m_HalfEdgeByVertIdx;
+            private HalfEdge[] m_HalfEdges;
+
+            #endregion Fields
+
+            #region Constructors
+
+            public Triangle(int[] _vertIdxs, DelaunayBase _dRef)
+                : base(_dRef)
+            {
+                if(_vertIdxs.Length != 3)
+                    throw new Exception("Vert count must be exactly 3");
+                //Check for dupe verts
+                if (_vertIdxs[0] == _vertIdxs[1] || _vertIdxs[0] == _vertIdxs[2] || _vertIdxs[1] == _vertIdxs[2])
+                    throw new Exception("new Triangle - Dupe Verts");  //TODO Handle this
+
+                //Sort points clockwise
+                var v0 = D.m_Points[_vertIdxs[0]];
+                var v1 = D.m_Points[_vertIdxs[1]];
+                var v2 = D.m_Points[_vertIdxs[2]];
+
+                var v1Idx = _vertIdxs[1];
+                var v2Idx = _vertIdxs[2];
+
+                //Force Clockwise
+                var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
+                if (angleCCW > 0)
+                {
+                    var vTmpIdx = v1Idx;
+                    v1Idx = v2Idx;
+                    v2Idx = vTmpIdx;
+                }
+                else if (angleCCW == 0)
+                    throw new Exception("new Triangle - Striaght line"); //TODO Handle this
+
+                //Create Edges
+                m_HalfEdgeByVertIdx = new Dictionary<int, int>();
+                m_HalfEdges = new HalfEdge[3];
+
+                ID = Guid.NewGuid();
+
+                D.m_Triangles.Add(ID, this);
+
+                m_HalfEdges[0] = new HalfEdge(this, _vertIdxs[0], D);
+                m_HalfEdges[1] = new HalfEdge(this, v1Idx, D);
+                m_HalfEdges[2] = new HalfEdge(this, v2Idx, D);
+
+                D.m_TrisContainingVert[_vertIdxs[0]].Add(ID);
+                D.m_TrisContainingVert[v1Idx].Add(ID);
+                D.m_TrisContainingVert[v2Idx].Add(ID);
+
+                m_HalfEdgeByVertIdx.Add(VertIdxs[0], 0);
+                m_HalfEdgeByVertIdx.Add(VertIdxs[1], 1);
+                m_HalfEdgeByVertIdx.Add(VertIdxs[2], 2);
             }
+
+            #endregion Constructors
+
+            #region Properties
+
+            public HashSet<Guid> NeighborIDs
+            {
+                get
+                {
+                    var nbrs = new HashSet<Guid>();
+                    for(int idx = 0; idx < 3; ++idx)
+                        if (m_HalfEdges[idx].Twin != null)
+                            nbrs.Add(m_HalfEdges[idx].Twin.TriID);
+                    return nbrs;
+                }
+            }
+
+            public Vertex[] Verts
+            {
+                get { return VertIdxs.Select(_id => D.m_Vertices[_id]).ToArray(); }
+            }
+
+            #endregion Properties
+
+            #region Methods
+
+            public HalfEdge GetHalfEdgeWithOrigin(int _vertIdx)
+            {
+                return !m_HalfEdgeByVertIdx.ContainsKey(_vertIdx) ? null : m_HalfEdges[m_HalfEdgeByVertIdx[_vertIdx]];
+            }
+
+            public HalfEdge HalfEdge(int _idx)
+            {
+                return m_HalfEdges[_idx];
+            }
+
+            public int HalfEdgeIdxWithVert(int _idx)
+            {
+                return m_HalfEdgeByVertIdx[_idx];
+            }
+
+            public HalfEdge HalfEdgeWithVert(int _idx)
+            {
+                return m_HalfEdges[m_HalfEdgeByVertIdx[_idx]];
+            }
+
+            public HalfEdge HalfEdgeWithVert(Vertex _vert)
+            {
+                return HalfEdgeWithVert(_vert.Idx);
+            }
+
+            public void SetHalfEdges(HalfEdge[] _edges)
+            {
+                m_HalfEdges = _edges;
+                m_HalfEdgeByVertIdx.Clear();
+                for(int idx = 0; idx < 3; ++idx)
+                    m_HalfEdgeByVertIdx.Add(m_HalfEdges[idx].OriginIdx, idx);
+            }
+
+            #endregion Methods
         }
+
+        public class Vertex : DelaunayObj
+        {
+            #region Fields
+
+            public int Idx;
+            public Vector2f Pos => D.m_Points[Idx];
+
+            #endregion Fields
+
+            #region Constructors
+
+            public Vertex(int idx, DelaunayBase _d)
+                : base(_d)
+            {
+                Idx = idx;
+            }
+
+            #endregion Constructors
+
+            #region Methods
+
+            public override string ToString()
+            {
+                return "Vrt Idx: " + Idx + " Pos: " + Pos;
+            }
+
+            #endregion Methods
+        }
+
+        #endregion Nested Types
     }
 }
