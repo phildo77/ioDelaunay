@@ -131,7 +131,7 @@ namespace ioDelaunay
                 var vecL = fBasEnd[RL.Left].Vert.Pos - fBasEnd.Vert.Pos;
                 var vecR = fBasEnd[RL.Right].Vert.Pos - fBasEnd.Vert.Pos;
                 var angleCW = AngleCW(vecL, vecR);
-                if (angleCW > Math.PI) break;
+                if (angleCW >= (Math.PI - float.Epsilon)) break;
                 fBasEnd = fBasEnd[_dir];
             }
 
@@ -166,7 +166,7 @@ namespace ioDelaunay
                 //Check that tri is valid (due to radius from Origin)
                 var vecLt = fOut.Left.Vert.Pos - fOut.Vert.Pos;
                 var vecRt = fOut.Right.Vert.Pos - fOut.Vert.Pos;
-                if (AngleCW(vecLt, vecRt) >= Math.PI) break;
+                if (AngleCW(vecLt, vecRt) >= (Math.PI - float.Epsilon)) break;
 
                 var twinLt = fOut[RL.Left].EdgeRight;
                 var twinRt = fOut.EdgeRight;
@@ -191,7 +191,7 @@ namespace ioDelaunay
             {
                 var vecL = fScan.Left.Vert.Pos - fScan.Vert.Pos;
                 var vecR = fScan.Right.Vert.Pos - fScan.Vert.Pos;
-                while (AngleCW(vecL, vecR) < Math.PI)
+                while (AngleCW(vecL, vecR) < (Math.PI - float.Epsilon))
                 {
                     var twinLt = fScan.Left.EdgeRight;
                     var twinRt = fScan.EdgeRight;

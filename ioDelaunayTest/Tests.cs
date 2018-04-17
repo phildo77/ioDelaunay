@@ -21,12 +21,12 @@ namespace ioDelaunayTest
         public void TestCircleSweep()
         {
             
-            var siteCnt = 100;
+            var siteCnt = 1000;
             var width = 500f;
             var height = 500f;
             var points = new List<Vector2f>();
 
-            var rand = new Random(45);
+            var rand = new Random();
             //Ceate random points in map area
             for (int i = 0; i < siteCnt; i++)
             {
