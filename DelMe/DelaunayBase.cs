@@ -289,6 +289,11 @@
                     m_HalfEdgeByVertIdx.Add(m_HalfEdges[idx].OriginIdx, idx);
             }
 
+            public void CircumCircle(out Vector2f _center, out float _r)
+            {
+                Geom.Circumcircle(Verts[0].Pos, Verts[1].Pos, Verts[2].Pos, out _center, out _r);
+            }
+
             #endregion Methods
         }
 
@@ -322,5 +327,7 @@
         }
 
         #endregion Nested Types
+        
+        
     }
 }

@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using ioDelaunay;
 using NUnit.Framework;
 using Vectorf;
-
 namespace ioDelaunayTest
 {
     [TestFixture]
@@ -21,12 +19,14 @@ namespace ioDelaunayTest
         public void TestCircleSweep()
         {
             
-            var siteCnt = 1000;
-            var width = 500f;
-            var height = 500f;
+            var siteCnt = 1000000;
+            var width = 10000f;
+            var height = 10000f;
             var points = new List<Vector2f>();
 
-            var rand = new Random();
+            var seed = DateTime.Now.Millisecond;
+            var rand = new Random(seed);
+            Trace.WriteLine("Circle Sweep - Random Seed: " + seed);
             //Ceate random points in map area
             for (int i = 0; i < siteCnt; i++)
             {
@@ -36,68 +36,30 @@ namespace ioDelaunayTest
                 );
             }
 
-            var cs = new CircleSweep(points.ToArray());
+            var del = new Delaunay(points.ToArray());
+            var cs = new CircleSweep();
+            del.triangulator = cs;
+
 
             try
             {
-                var mesh = cs.Triangulate();
-                Console.WriteLine(mesh.ToString());
+                del.Triangulate();
+
             }
             catch (Exception e)
             {
-                DebugVisualizer.Visualize(cs);
+                //DebugVisualizer.Visualize(del);
                 throw;
             }
+            var mesh = del.Mesh;
+            Console.WriteLine(mesh.ToString());
 
-            DebugVisualizer.Visualize(cs);
+            //DebugVisualizer.Visualize(del);
             
             Assert.True(true);
             
         }
-           
-
-        /*
-        [Test]
-        public void AngleFromOrigin()
-        {
-            var pt1 = Vector2f.one;
-            var pt2 = Vector2f.up;
-            var pt3 = Vector2f.left;
-            var pt4 = Vector2f.right;
-            var pt5 = Vector2f.down;
-            var pt6 = -Vector2f.one;
-
-            var origin = Vector2f.zero;
-
-            var a1 = CircleSweep.AngleFromOrigin(origin, pt1);
-            var deg225 = 7f * (float)Math.PI / 4f;
-
-            var a2 = CircleSweep.AngleFromOrigin(origin, pt2);
-            var deg270 = 3f * (float)Math.PI / 2f;
-            
-            var a3 = CircleSweep.AngleFromOrigin(origin, pt3);
-            var deg180 = (float) Math.PI;
-            
-            var a4 = CircleSweep.AngleFromOrigin(origin, pt4);
-            var deg360 = 2f * (float)Math.PI;
-            
-            var a5 = CircleSweep.AngleFromOrigin(origin, pt5);
-            var deg90 = (float) Math.PI / 2f;
-
-            var a6 = CircleSweep.AngleFromOrigin(origin, pt6);
-            var deg135 = 3f * (float) Math.PI / 4f;
-
-            var pass = a1.IsSimilarTo(deg225);
-            if (!a2.IsSimilarTo(deg270) ) pass = false;
-            if (!a3.IsSimilarTo(deg180)) pass = false;
-            if (!a4.IsSimilarTo(deg360)) pass = false;
-            if (!a5.IsSimilarTo(deg90)) pass = false;
-            if (!a6.IsSimilarTo(deg135)) pass = false;
-
-            Assert.IsTrue(pass);
-
-        }
-        */
+        
     
         
     }
