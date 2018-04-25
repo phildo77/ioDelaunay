@@ -7,28 +7,42 @@ namespace ioPolygonGraph
 {
     public abstract class PolygonGraph
     {
-        public readonly Rectf BoundsRect;
-        protected readonly Vector2f[] m_Points;
+        protected Rectf m_BoundsRect = Rectf.zero;
+        public Rectf BoundsRect => m_BoundsRect;
+        private List<Vector2f> m_Points;
         protected readonly Dictionary<Guid, Poly> m_Polys;
-        protected readonly Vertex[] m_Vertices;
+        protected readonly List<Vertex> m_Vertices;
 
-        protected HashSet<Guid>[] m_PolysContainingVert;
+        protected List<HashSet<Guid>> m_PolysContainingVert;
+        
+        public Vector2f[] Points
+        {
+            get { return m_Vertices.Select(_vert => _vert.Pos).ToArray(); }
+        }
 
+        protected PolygonGraph()
+        {
+            m_Polys = new Dictionary<Guid, Poly>();
+            m_Points = new List<Vector2f>();
+            m_Vertices = new List<Vertex>();
+            m_PolysContainingVert = new List<HashSet<Guid>>();
+        }
+        
         protected PolygonGraph(Vector2f[] _points)
         {
-            m_Points = _points;
-            m_Vertices = new Vertex[m_Points.Length];
+            m_Points = _points.ToList();
+            m_Vertices = new List<Vertex>();
             m_Polys = new Dictionary<Guid, Poly>();
-            m_PolysContainingVert = new HashSet<Guid>[m_Points.Length];
+            m_PolysContainingVert = new List<HashSet<Guid>>();
             var bndsRect = new Rectf(m_Points[0], Vector2f.zero);
-            for (var idx = 0; idx < m_Points.Length; ++idx)
+            for (var idx = 0; idx < m_Points.Count; ++idx)
             {
-                m_Vertices[idx] = new Vertex(idx, this);
-                m_PolysContainingVert[idx] = new HashSet<Guid>();
+                m_Vertices.Add(new Vertex(idx, this));
+                m_PolysContainingVert.Add(new HashSet<Guid>());
                 bndsRect.Encapsulate(m_Points[idx]);
             }
 
-            BoundsRect = bndsRect;
+            m_BoundsRect = bndsRect;
         }
 
         public Poly GetPoly(Guid _id)
@@ -36,6 +50,22 @@ namespace ioPolygonGraph
             return m_Polys[_id];
         }
 
+        public void AddVertex(Vector2f _vertex)
+        {
+            m_Points.Add(_vertex);
+            m_Vertices.Add(new Vertex(m_Points.Count - 1, this));
+            m_PolysContainingVert.Add(new HashSet<Guid>());
+            if(BoundsRect == Rectf.zero)
+                m_BoundsRect = new Rectf(_vertex, Vector2f.zero);
+            m_BoundsRect.Encapsulate(_vertex);
+        }
+
+        public void AddVertices(IEnumerable<Vector2f> _vertices)
+        {
+            foreach (var vert in _vertices)
+                AddVertex(vert);
+
+        }
 
         public class Vertex : IPolyGraphObj
         {
@@ -77,6 +107,7 @@ namespace ioPolygonGraph
                 G = _g;
                 ID = Guid.NewGuid();
                 G.m_Polys.Add(ID, this);
+                Closed = _closed;
                 Reform(_vertIdxsOrdered);
             }
 
@@ -163,7 +194,7 @@ namespace ioPolygonGraph
                         var edgeIdx = EdgeIdx;
                         if (edgeIdx != Poly.m_EdgeOrigins.Length - 1)
                             return Poly.EdgeWithOrigin(Poly.m_EdgeOrigins[edgeIdx + 1]);
-                        return Poly.Closed ? null : Poly.EdgeWithOrigin(Poly.m_EdgeOrigins[0]);
+                        return Poly.Closed ? Poly.EdgeWithOrigin(Poly.m_EdgeOrigins[0]) : null;
                     }
                 }
 

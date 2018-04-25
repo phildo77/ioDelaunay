@@ -10,6 +10,7 @@ namespace ioDelaunay
     public partial class Delaunay : PolygonGraph
     {
         protected HashSet<Guid> m_CheckedTris;
+        public int[] HullIdxs;
 
         private Triangulator m_Triangulator;
 
@@ -31,10 +32,21 @@ namespace ioDelaunay
                 for (var tIdx = 0; tIdx < tris.Length; ++tIdx)
                 for (var vIdx = 0; vIdx < 3; ++vIdx)
                     triIdxs[tIdx * 3 + vIdx] = tris[tIdx].Edge(vIdx).OriginIdx;
-                return new Mesh(m_Points, triIdxs);
+                return new Mesh(Points, triIdxs);
             }
         }
 
+        public HashSet<int> DebugForceAllLegalize()
+        {
+            var affectedVerts = new HashSet<int>();
+            foreach (var triID in m_Polys.Keys)
+            {
+                affectedVerts = Legalize(triID);
+            }
+
+            return affectedVerts;
+        }
+        
         public Triangulator triangulator
         {
             get { return m_Triangulator; }
@@ -113,9 +125,9 @@ namespace ioDelaunay
                 return false;
 
             //Check for stright line
-            var v0 = m_Points[_v0];
-            var v1 = m_Points[_v1];
-            var v2 = m_Points[_v2];
+            var v0 = m_Vertices[_v0].Pos;
+            var v1 = m_Vertices[_v1].Pos;
+            var v2 = m_Vertices[_v2].Pos;
 
             var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
             if (angleCCW < float.Epsilon && angleCCW > -float.Epsilon)
@@ -131,6 +143,7 @@ namespace ioDelaunay
 
         public class Triangle : Poly, IDelaunayObj
         {
+            public static int DebugAddTriCnt = 0;
             public Triangle(int[] _vertIdxs, Delaunay _d)
                 : base(_vertIdxs, true, _d)
             {
@@ -143,9 +156,9 @@ namespace ioDelaunay
                 D = _d;
 
                 //Sort points clockwise
-                var v0 = D.m_Points[_vertIdxs[0]];
-                var v1 = D.m_Points[_vertIdxs[1]];
-                var v2 = D.m_Points[_vertIdxs[2]];
+                var v0 = D.m_Vertices[_vertIdxs[0]].Pos;
+                var v1 = D.m_Vertices[_vertIdxs[1]].Pos;
+                var v2 = D.m_Vertices[_vertIdxs[2]].Pos;
 
                 //Force Clockwise
                 var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
@@ -153,6 +166,11 @@ namespace ioDelaunay
                     Reform(_vertIdxs[0], _vertIdxs[2], _vertIdxs[1]);
                 else if (angleCCW == 0)
                     throw new Exception("new Triangle - Striaght line"); //TODO Handle this
+                if(DebugAddTriCnt != 0)//TODO debug
+                    DebugVisualizer.Visualize(D, null, "addTri" + DebugAddTriCnt);
+                if(DebugAddTriCnt == 45)
+                    Console.WriteLine("Debug");
+                DebugAddTriCnt++;
             }
 
             public Delaunay D { get; }
@@ -166,15 +184,24 @@ namespace ioDelaunay
             {
                 Reform(new[] {_vIdx0, _vIdx1, _vIdx2});
             }
+
+            
+            
+            public class HullEdge : HalfEdge
+            {
+                public HullEdge(Poly _poly, int _originIdx, PolygonGraph _g) : base(_poly, _originIdx, _g)
+                {
+                }
+            }
         }
 
         public abstract class Triangulator
         {
             protected Delaunay D;
-            protected Vector2f[] Points => D.m_Points;
+            protected Vector2f[] Points => D.Points;
             protected Dictionary<Guid, Poly> Polys => D.m_Polys;
-            protected HashSet<Guid>[] PolysContainingVert => D.m_PolysContainingVert;
-            protected Vertex[] Vertices => D.m_Vertices;
+            protected HashSet<Guid>[] PolysContainingVert => D.m_PolysContainingVert.ToArray();
+            protected Vertex[] Vertices => D.m_Vertices.ToArray();
 
             public void SetD(Delaunay _d)
             {
@@ -184,8 +211,16 @@ namespace ioDelaunay
             public void Triangulate()
             {
                 Algorithm();
+                Hull();
             }
 
+            /// <summary>
+            /// This is where HullIdxs should be populated
+            /// </summary>
+            protected abstract void Hull();
+            /// <summary>
+            /// This is where the triangulation algorithm to populate polys.
+            /// </summary>
             protected abstract void Algorithm();
 
             protected Triangle Tri(Guid _triID)

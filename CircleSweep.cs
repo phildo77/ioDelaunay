@@ -8,37 +8,19 @@ namespace ioDelaunay
 {
     public class CircleSweep : Delaunay.Triangulator
     {
-        #region Enumerations
-
         public enum RL
         {
             Right,
             Left
         }
 
-        #endregion Enumerations
-
-        #region Constructors
-
-        #endregion Constructors
-
-        #region Nested Interfaces
-
         public interface ICircleSweepObj
         {
-            #region Properties
-
             CircleSweep CS { get; }
-
-            #endregion Properties
         }
 
-        #endregion Nested Interfaces
-
-        #region Fields
-
         public Rectf Bounds => new Rectf(D.BoundsRect);
-        public Frontier DebugFrontier { get; private set; }
+        public Frontier frontier;
 
         public Vector2f Origin { get; private set; }
 
@@ -47,10 +29,6 @@ namespace ioDelaunay
         // Don't change
         private PolartPt[] m_PolPos; //By Point Idx
         private int[] m_VertIdxsByR;
-
-        #endregion Fields
-
-        #region Methods
 
         /// <summary>
         ///     Angle to origin, x axis clockwise.
@@ -128,13 +106,14 @@ namespace ioDelaunay
             return trisContaining;
         }
 
+
         protected override void Algorithm()
         {
             Init();
-
+            
             for (var rIdx = 3; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
-                //var debug1 = m_Frontier.DebugScanForTwin();
+                //var debug1 = frontier.DebugScanForTwin();
                 //if (debug1.Count != 0)
                 //    Console.WriteLine(debug1.ToString());
                 var ofVertIdx = m_VertIdxsByR[rIdx];
@@ -142,15 +121,15 @@ namespace ioDelaunay
 
                 // 1) Project
                 var thetaHit = PolPos(ofVert.Idx).Theta;
-                var fntVerts = DebugFrontier.Project(thetaHit);
+                var fntVerts = frontier.Project(thetaHit);
 
                 // 2) Create Tri and Legalize
-                //debug1 = m_Frontier.DebugScanForTwin();
+                //debug1 = frontier.DebugScanForTwin();
                 //if (debug1.Count != 0)
                 //    Console.WriteLine(debug1.ToString());
                 var tri = D.AddTriToMesh(ofVertIdx, fntVerts[0].EdgeRight);
 
-                var newFntPt = DebugFrontier.Add(ofVert, tri, fntVerts[0], fntVerts[1]);
+                var newFntPt = frontier.Add(ofVert, tri, fntVerts[0], fntVerts[1]);
 
                 var fiData = D.Legalize(tri.ID);
                 LegalizeFrontier(fiData);
@@ -169,15 +148,15 @@ namespace ioDelaunay
             }
 
             // 7) Finalize
-            FinalizeHull();
+            Hull();
         }
 
         private void LegalizeFrontier(HashSet<int> _affectedVerts)
         {
             foreach (var vertIdx in _affectedVerts)
             {
-                if (!DebugFrontier.ContainsVert(vertIdx)) continue;
-                var fPt = DebugFrontier.GetHaving(vertIdx);
+                if (!frontier.ContainsVert(vertIdx)) continue;
+                var fPt = frontier.GetHaving(vertIdx);
                 var rtIdx = fPt.Right.VertIdx;
 
                 var commonTris = GetTrisContainingAllVerts(fPt.VertIdx, rtIdx).ToArray();
@@ -215,7 +194,7 @@ namespace ioDelaunay
         private void FillBasin(RL _dir, int _viIdx)
         {
             //Setup
-            var fvi = DebugFrontier.GetHaving(_viIdx);
+            var fvi = frontier.GetHaving(_viIdx);
             var fvrp = fvi[_dir][_dir];
             var polvi = PolPos(fvi.VertIdx);
             var polvrp = PolPos(fvrp.VertIdx);
@@ -270,9 +249,9 @@ namespace ioDelaunay
                 };
 
                 //Find frontier point that will be removed
-                var fOut = DebugFrontier.GetHaving(newVerts[0]);
+                var fOut = frontier.GetHaving(newVerts[0]);
                 if (!newVerts.Contains(fOut[RL.Right].VertIdx) || !newVerts.Contains(fOut[RL.Left].VertIdx))
-                    fOut = DebugFrontier.GetHaving(newVerts[1]);
+                    fOut = frontier.GetHaving(newVerts[1]);
 
                 //Check that tri is valid (due to radius from Origin)
                 var vecLt = fOut.Left.Vert.Pos - fOut.Vert.Pos;
@@ -284,7 +263,7 @@ namespace ioDelaunay
 
                 var newTri = D.AddTriToMesh(twinLt, twinRt);
                 if (newTri == null) break;
-                DebugFrontier.Remove(fOut);
+                frontier.Remove(fOut);
 
                 var changedVerts = D.Legalize(newTri.ID);
                 LegalizeFrontier(changedVerts);
@@ -293,9 +272,10 @@ namespace ioDelaunay
             }
         }
 
-        private void FinalizeHull()
+        protected override void Hull()
         {
-            var fStart = DebugFrontier.Project(0)[0];
+            var hullIdxs = new List<int>();
+            var fStart = frontier.Project(0)[0];
             var fScan = fStart;
             var firstScanDone = false;
             var maxHullAngle = Settings.ForceConvexHull
@@ -315,7 +295,7 @@ namespace ioDelaunay
                     fScan = fScan.Left;
                     if (fStart.VertIdx == fScan.Right.VertIdx)
                         fStart = fScan.Left;
-                    DebugFrontier.Remove(fScan.Right);
+                    frontier.Remove(fScan.Right);
                     var changedVerts = D.Legalize(newTri.ID);
                     LegalizeFrontier(changedVerts);
 
@@ -323,9 +303,12 @@ namespace ioDelaunay
                     vecR = fScan.Right.Vert.Pos - fScan.Vert.Pos;
                 }
 
+                hullIdxs.Add(fScan.VertIdx);
                 fScan = fScan.Right;
                 if (!firstScanDone) firstScanDone = true;
             }
+
+            D.HullIdxs = hullIdxs.ToArray();
         }
 
         private PolygonGraph.Vertex[] GetVerts(int[] _vertIdxs)
@@ -350,7 +333,7 @@ namespace ioDelaunay
 
             var firstTri = new Delaunay.Triangle(triVertIdxs, D);
 
-            DebugFrontier = new Frontier(firstTri, this);
+            frontier = new Frontier(firstTri, this);
         }
 
         private PolartPt PolPos(int _vertIdx)
@@ -365,7 +348,7 @@ namespace ioDelaunay
 
         private void Walk(RL _dir, int _viIdx)
         {
-            var fvi = DebugFrontier.GetHaving(_viIdx);
+            var fvi = frontier.GetHaving(_viIdx);
 
             while (true)
             {
@@ -381,26 +364,16 @@ namespace ioDelaunay
                 var twinRt = fvn.EdgeRight;
                 var newTri = D.AddTriToMesh(twinLt, twinRt);
                 if (newTri == null) break;
-                DebugFrontier.Remove(fvn);
+                frontier.Remove(fvn);
                 var changedVerts = D.Legalize(newTri.ID);
                 LegalizeFrontier(changedVerts);
             }
         }
 
-        #endregion Methods
-
-        #region Nested Types
-
         //TODO PRIVATE?
         public class Frontier : ICircleSweepObj
         {
-            #region Fields
-
             private readonly FPList m_FPList;
-
-            #endregion Fields
-
-            #region Constructors
 
             public Frontier(Delaunay.Triangle _firstTri, CircleSweep _cs)
             {
@@ -424,15 +397,7 @@ namespace ioDelaunay
                 m_FPList.Add(ftPts[2]);
             }
 
-            #endregion Constructors
-
-            #region Properties
-
             public CircleSweep CS { get; }
-
-            #endregion Properties
-
-            #region Methods
 
             public FrontierPt Add(PolygonGraph.Vertex _newVert, Delaunay.Triangle _newTri, FrontierPt _fLt,
                 FrontierPt _fRt)
@@ -487,10 +452,6 @@ namespace ioDelaunay
                 _fPt.Dispose();
             }
 
-            #endregion Methods
-
-            #region Nested Types
-
             /*
             public Guid DebugGetTriangleAtFrontierRt(FrontierPt _fPt)
             {
@@ -510,18 +471,12 @@ namespace ioDelaunay
             */
             public class FrontierPt : ICircleSweepObj
             {
-                #region Constructors
-
                 public FrontierPt(int vertIdx, PolygonGraph.Poly.HalfEdge _edgeRight, CircleSweep _cs)
                 {
                     VertIdx = vertIdx;
                     EdgeRight = _edgeRight;
                     CS = _cs;
                 }
-
-                #endregion Constructors
-
-                #region Fields
 
                 public readonly int VertIdx;
 
@@ -533,10 +488,6 @@ namespace ioDelaunay
                 public Guid TriRightID { get; private set; }
 
                 public PolygonGraph.Vertex Vert => CS.Vertices[VertIdx];
-
-                #endregion Fields
-
-                #region Properties
 
                 public CircleSweep CS { get; }
 
@@ -550,10 +501,6 @@ namespace ioDelaunay
                     }
                 }
 
-                #endregion Properties
-
-                #region Methods
-
                 public void Dispose()
                 {
                     Left = null;
@@ -566,14 +513,10 @@ namespace ioDelaunay
                     var er = (EdgeRight ?? (object) "").ToString();
                     return "Fnt Pt v: " + v + " RtV: " + Right.Vert.Idx + " LtV: " + Left.Vert.Idx + " EdgeRt: " + er;
                 }
-
-                #endregion Methods
             }
 
             private class FPList : ICircleSweepObj
             {
-                #region Constructors
-
                 public FPList(CircleSweep _cs)
                 {
                     CS = _cs;
@@ -581,22 +524,10 @@ namespace ioDelaunay
                     m_FptByVertIdx = new Dictionary<int, FrontierPt>();
                 }
 
-                #endregion Constructors
-
-                #region Properties
-
                 public CircleSweep CS { get; }
-
-                #endregion Properties
-
-                #region Fields
 
                 private readonly Dictionary<int, FrontierPt> m_FptByVertIdx;
                 private readonly SortedList<float, SortedList<float, FrontierPt>> m_FPts;
-
-                #endregion Fields
-
-                #region Methods
 
                 public void Add(FrontierPt _pt)
                 {
@@ -648,17 +579,11 @@ namespace ioDelaunay
                         m_FPts.Remove(polPos.Theta);
                     m_FptByVertIdx.Remove(_pt.VertIdx);
                 }
-
-                #endregion Methods
             }
-
-            #endregion Nested Types
         }
 
         public static class Settings
         {
-            #region Fields
-
             /// <summary>
             ///     Force outer hull to be convex.  If true, overrides MaxHullAngleDegrees
             /// </summary>
@@ -668,26 +593,14 @@ namespace ioDelaunay
             ///     When finishing hull, sets the max angle at which a tri will be added.
             /// </summary>
             public static float MaxHullAngleDegrees = 135f;
-
-            #endregion Fields
         }
 
         private class PolartPt : ICircleSweepObj
         {
-            #region Properties
-
             public CircleSweep CS { get; }
-
-            #endregion Properties
-
-            #region Fields
 
             public readonly float r;
             public readonly float Theta;
-
-            #endregion Fields
-
-            #region Constructors
 
             public PolartPt(float _radius, float _theta, CircleSweep _cs)
             {
@@ -705,10 +618,6 @@ namespace ioDelaunay
                 r = (float) Math.Sqrt(nx * nx + ny * ny);
                 Theta = AngleFromOrigin(_origin, _cPt);
             }
-
-            #endregion Constructors
         }
-
-        #endregion Nested Types
     }
 }

@@ -19,14 +19,14 @@ namespace ioDelaunayTest
         public void TestCircleSweep()
         {
             
-            var siteCnt = 1000000;
-            var width = 10000f;
-            var height = 10000f;
+            var siteCnt = 50;
+            var width = 1000f;
+            var height = 1000f;
             var points = new List<Vector2f>();
 
             var seed = DateTime.Now.Millisecond;
-            var rand = new Random(seed);
-            Trace.WriteLine("Circle Sweep - Random Seed: " + seed);
+            var rand = new Random(470);
+            Trace.WriteLine("Circle Sweep - Random Seed: " + 470);
             //Ceate random points in map area
             for (int i = 0; i < siteCnt; i++)
             {
@@ -39,22 +39,31 @@ namespace ioDelaunayTest
             var del = new Delaunay(points.ToArray());
             var cs = new CircleSweep();
             del.triangulator = cs;
-
+            del.Triangulate();
+            var vor = new Delaunay.Voronoi(del);
 
             try
             {
-                del.Triangulate();
-
+                vor.BuildSites2();
             }
             catch (Exception e)
             {
-                //DebugVisualizer.Visualize(del);
+                DebugVisualizer.Visualize(del, null, "ExceptionDEL");
+                DebugVisualizer.Visualize(vor);
                 throw;
             }
             var mesh = del.Mesh;
             Console.WriteLine(mesh.ToString());
 
             //DebugVisualizer.Visualize(del);
+            //DebugVisualizer.Visualize(vor);
+            DebugVisualizer.Visualize(del, vor, "DelVor");
+            
+            var debug = del.DebugForceAllLegalize();
+            Console.WriteLine(debug.ToString());
+            DebugVisualizer.Visualize(del, vor, "DelVorF");
+            //DebugVisualizer.Visualize(del, "DelcircumCircles2");
+            //DebugVisualizer.TestCirumcircle();
             
             Assert.True(true);
             
