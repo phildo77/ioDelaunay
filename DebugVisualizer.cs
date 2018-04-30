@@ -19,8 +19,10 @@ namespace ioDelaunay
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (1200), (int) (1200));
+            var bitmap = new Bitmap((int) (1500), (int) (1500));
             var originOffset = _d.BoundsRect.min;
+            originOffset.x -= 100;
+            originOffset.y -= 100;
             var vectTextDrawn = new HashSet<int>();
 
 
@@ -121,7 +123,7 @@ namespace ioDelaunay
                 foreach (var site in sites)
                     for (var idx = 0; idx < site.VertIdxs.Length; ++idx)
                     {
-                    
+                        if (idx == site.VertIdxs.Length - 1 && !_v.settings.CloseOuterSites) break;
                         try
                         {
                             var edge = site.Edge(idx);
@@ -141,7 +143,7 @@ namespace ioDelaunay
                                 if (!showVertIdxs) continue;
                                 var textRect = new RectangleF(new PointF(x1, y1), new SizeF(45, 20));
 
-                                g.DrawString(edge.OriginIdx.ToString(), new Font("Small Fonts", fontSize), Brushes.BurlyWood,
+                                g.DrawString(edge.OriginIdx.ToString(), new Font("Small Fonts", fontSize), Brushes.Blue,
                                     textRect);
                             }
                         }
@@ -157,6 +159,14 @@ namespace ioDelaunay
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
             bitmap.Save(path);
         }
+
+        public static Color RandColor(Random _r)
+        {
+            int r = (int)((0.2f + _r.NextDouble() * 0.8f) * 255);
+            int g = (int)((0.2f + _r.NextDouble() * 0.8f) * 255);
+            int b = (int)((0.2f + _r.NextDouble() * 0.8f) * 255);
+            return Color.FromArgb(r, g, b);
+        }
         
         public static void Visualize(Delaunay.Voronoi _v, string _fileName = "debugVoronoi2")
         {
@@ -166,6 +176,7 @@ namespace ioDelaunay
 
 
             //Draw Sites
+            var rand = new Random((int)DateTime.Now.Ticks);
             var sites = _v.Sites;
             foreach (var site in sites)
                 for (var idx = 0; idx < site.VertIdxs.Length; ++idx)
@@ -184,7 +195,7 @@ namespace ioDelaunay
                             g.SmoothingMode = SmoothingMode.None;
                             g.InterpolationMode = InterpolationMode.Low;
                             g.PixelOffsetMode = PixelOffsetMode.None;
-                            var pen = new Pen(m_ColorMesh);
+                            var pen = new Pen(RandColor(rand));
                             g.DrawLine(pen, x1, y1, x2, y2);
 
                             if (!showVertIdxs) continue;

@@ -40,7 +40,9 @@ namespace ioDelaunayTest
             var cs = new CircleSweep();
             del.triangulator = cs;
             del.Triangulate();
-            var vor = new Delaunay.Voronoi(del);
+            var vSet = new Delaunay.Voronoi.Settings();
+            vSet.CloseOuterSites = false;
+            var vor = new Delaunay.Voronoi(del,vSet);
 
             try
             {
@@ -50,6 +52,7 @@ namespace ioDelaunayTest
             {
                 DebugVisualizer.Visualize(del, null, "ExceptionDEL");
                 DebugVisualizer.Visualize(vor);
+                DebugVisualizer.Visualize(del, vor, "DelVor");
                 throw;
             }
             var mesh = del.Mesh;
@@ -58,19 +61,12 @@ namespace ioDelaunayTest
             //DebugVisualizer.Visualize(del);
             //DebugVisualizer.Visualize(vor);
             DebugVisualizer.Visualize(del, vor, "DelVor");
-            
-            var debug = del.DebugForceAllLegalize();
-            Console.WriteLine(debug.ToString());
-            DebugVisualizer.Visualize(del, vor, "DelVorF");
             //DebugVisualizer.Visualize(del, "DelcircumCircles2");
             //DebugVisualizer.TestCirumcircle();
             
             Assert.True(true);
             
         }
-        
-    
-        
     }
 
     public static class TestExt
