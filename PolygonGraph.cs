@@ -9,11 +9,13 @@ namespace ioPolygonGraph
     {
         protected Rectf m_BoundsRect = Rectf.zero;
         public Rectf BoundsRect => m_BoundsRect;
-        private List<Vector2f> m_Points;
+        protected List<Vector2f> m_Points;
         protected readonly Dictionary<Guid, Poly> m_Polys;
         protected readonly List<Vertex> m_Vertices;
 
         protected List<HashSet<Guid>> m_PolysContainingVert;
+        
+        
         
         public Vector2f[] Points
         {
@@ -86,6 +88,11 @@ namespace ioPolygonGraph
             public override string ToString()
             {
                 return "Vrt Idx: " + Idx + " Pos: " + Pos;
+            }
+
+            public void SetPosition(Vector2f _pos)
+            {
+                G.m_Points[Idx] = _pos;
             }
         }
 

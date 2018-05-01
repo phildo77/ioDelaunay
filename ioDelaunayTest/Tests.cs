@@ -63,6 +63,13 @@ namespace ioDelaunayTest
             DebugVisualizer.Visualize(del, vor, "DelVor");
             //DebugVisualizer.Visualize(del, "DelcircumCircles2");
             //DebugVisualizer.TestCirumcircle();
+
+
+            for (int lIdx = 0; lIdx < 20; ++lIdx)
+            {
+                vor.LloydRelax();
+                DebugVisualizer.Visualize(del, vor, "DelVorLloyd " + lIdx);
+            }
             
             Assert.True(true);
             

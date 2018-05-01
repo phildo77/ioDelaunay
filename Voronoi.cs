@@ -21,42 +21,39 @@ namespace ioDelaunay
             
             private readonly Dictionary<int, Guid> m_TriIDByCentIdx;
             private readonly Dictionary<Guid, int> m_CentIdxByTriID; //Delaunay triangle centers;
-            private readonly Dictionary<int, int[]> m_HullIdxMap;
             private readonly Dictionary<int, Guid> m_SiteIDByDVertIdx;
-            private readonly HashSet<Guid> m_HullSites;
             
             public Site[] Sites => m_Polys.Values.Cast<Site>().ToArray();
 
-            private Voronoi(Vector2f[] _points, Dictionary<int, int[]> _hullIdxMap, Delaunay _d, Settings _settings = null) : base(_points)
-            {
-                D = _d;
-                m_SiteIDByDVertIdx = new Dictionary<int, Guid>();
-                m_HullSites = new HashSet<Guid>();
-                m_HullIdxMap = _hullIdxMap;
-                if (_settings == null)
-                    _settings = new Settings();
-                settings = _settings;
-                m_CentIdxByTriID = new Dictionary<Guid, int>();
-                m_TriIDByCentIdx = new Dictionary<int, Guid>();
-                var triIDs = _d.m_Polys.Keys.ToArray();
-                for (var tIdx = 0; tIdx < triIDs.Length; ++tIdx)
-                {
-                    m_CentIdxByTriID.Add(triIDs[tIdx], tIdx);
-                    m_TriIDByCentIdx.Add(tIdx, triIDs[tIdx]);
-                }
-            }
+            
 
             public Voronoi(Delaunay _d, Settings _settings = null) : base()
             {
                 settings = _settings;
                 D = _d;
 
-                var delTris = D.Triangles;
-                var centers = new List<Vector2f>();
-
                 m_CentIdxByTriID = new Dictionary<Guid, int>();
                 m_TriIDByCentIdx = new Dictionary<int, Guid>();
                 m_SiteIDByDVertIdx = new Dictionary<int, Guid>();
+
+                Init();
+
+            }
+
+            private void Init()
+            {
+                m_CentIdxByTriID.Clear();
+                m_TriIDByCentIdx.Clear();
+                m_SiteIDByDVertIdx.Clear();
+                m_Points.Clear();
+                m_Polys.Clear();
+                m_Vertices.Clear();
+                m_PolysContainingVert.Clear();
+                m_BoundsRect = Rectf.zero;
+                
+                var delTris = D.Triangles;
+                var centers = new List<Vector2f>();
+
                 for (int tIdx = 0; tIdx < delTris.Length; ++tIdx)
                 {
                     var tri = delTris[tIdx];
@@ -69,8 +66,6 @@ namespace ioDelaunay
                 }
 
                 AddVertices(centers);
-                
-                
             }
             
 
@@ -79,10 +74,6 @@ namespace ioDelaunay
 
             public void BuildSites2()
             {
-                
-                
-                
-                
                 //Inner sites
                 for(int delIdx = 0; delIdx < D.m_Vertices.Count; ++delIdx)
                 {
@@ -233,6 +224,26 @@ namespace ioDelaunay
             }
             
             private enum BndSide : int { Invalid = -1, Left = 0, Up = 1, Right = 2, Down = 3}
+
+            public void LloydRelax(int _iters = 1)
+            {
+                for (int iter = 0; iter < _iters; ++iter)
+                {
+                    foreach (var polykvp in m_Polys)
+                    {
+                        var site = (Site) polykvp.Value;
+                        var centroid = Geom.CentroidOfPoly(site.Verts.Select(_vert => _vert.Pos).ToArray()); //Todo make IENUM
+    
+                        D.m_Vertices[site.VertDelIdx].SetPosition(centroid);
+    
+                    }
+
+                    D.LegalizeAll();
+                    Init();
+                    BuildSites2();
+                }
+                    
+            }
             
             private void ConnectSites(int _delIdx)
             {

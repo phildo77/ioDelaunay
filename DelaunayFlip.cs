@@ -8,6 +8,48 @@ namespace ioDelaunay
 {
     public partial class Delaunay
     {
+
+        public HashSet<int> LegalizeAll()
+        {
+            var tris = Triangles;
+            var eMarked = new HashSet<FEdge>();
+            var eStack = new Stack<FEdge>();
+            var affectedVerts = new HashSet<int>();
+
+            foreach (var tri in tris)
+                foreach(var hEdge in tri.Edges)
+                    if (hEdge.Twin != null)
+                    {
+                        var fEdge = new FEdge(hEdge, this);
+                        if (eMarked.Contains(fEdge)) continue;
+                        eMarked.Add(fEdge);
+                        eStack.Push(fEdge);
+                    }
+            
+            while (eStack.Count != 0)
+            {
+                var fEdge = eStack.Pop();
+                eMarked.Remove(fEdge);
+                if (!fEdge.Exists) continue;
+                if (IsDelaunay(fEdge)) continue;
+                FEdge[] _outerEdges;
+                affectedVerts.UnionWith(fEdge.Flip(out _outerEdges));
+                foreach (var oEdge in _outerEdges)
+                {
+                    var debugHC = oEdge.GetHashCode();
+                    Console.WriteLine(debugHC.ToString());
+                    if (!eMarked.Contains(oEdge))
+                    {
+                        eMarked.Add(oEdge);
+                        eStack.Push(oEdge);
+                    } 
+                }
+                    
+            }
+
+            return affectedVerts;
+        }
+        
         public HashSet<int> Legalize(Guid _startTriID)
         {
             var eStack = new Stack<FEdge>();
