@@ -19,9 +19,9 @@ namespace ioDelaunayTest
         public void TestCircleSweep()
         {
             
-            var siteCnt = 50;
-            var width = 1000f;
-            var height = 1000f;
+            var siteCnt = 1000;
+            var width = 1500;
+            var height = 1500;
             var points = new List<Vector2f>();
 
             var seed = DateTime.Now.Millisecond;
@@ -46,12 +46,12 @@ namespace ioDelaunayTest
 
             try
             {
-                vor.BuildSites2();
+                vor.BuildSites();
             }
             catch (Exception e)
             {
                 DebugVisualizer.Visualize(del, null, "ExceptionDEL");
-                DebugVisualizer.Visualize(vor);
+                //DebugVisualizer.Visualize(vor);
                 DebugVisualizer.Visualize(del, vor, "DelVor");
                 throw;
             }
@@ -67,8 +67,15 @@ namespace ioDelaunayTest
 
             for (int lIdx = 0; lIdx < 20; ++lIdx)
             {
-                vor.LloydRelax();
-                DebugVisualizer.Visualize(del, vor, "DelVorLloyd " + lIdx);
+                try
+                {
+                    vor.LloydRelax();
+                    DebugVisualizer.Visualize(del, vor, "DelVorLloyd " + lIdx);
+                }
+                catch (Exception _e)
+                {
+                    DebugVisualizer.Visualize(del, vor, "DelVorLloydEx " + lIdx);
+                }
             }
             
             Assert.True(true);

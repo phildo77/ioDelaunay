@@ -19,10 +19,10 @@ namespace ioDelaunay
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (1500), (int) (1500));
+            var bitmap = new Bitmap((int) (2000), (int) (2000));
             var originOffset = _d.BoundsRect.min;
-            originOffset.x -= 100;
-            originOffset.y -= 100;
+            originOffset.x -= 250;
+            originOffset.y -= 250;
             var vectTextDrawn = new HashSet<int>();
 
 
@@ -123,9 +123,11 @@ namespace ioDelaunay
                 foreach (var site in sites)
                     for (var idx = 0; idx < site.VertIdxs.Length; ++idx)
                     {
-                        if (idx == site.VertIdxs.Length - 1 && !_v.settings.CloseOuterSites) break;
+                        if (idx == site.VertIdxs.Length - 1 && !site.Closed) break;
                         try
                         {
+                            if (site.VertDelIdx == 400) //TODO DEBUG
+                                Console.WriteLine("Debug");
                             var edge = site.Edge(idx);
                             var x1 = edge.Origin.Pos.x - originOffset.x;
                             var y1 = edge.Origin.Pos.y - originOffset.y;
@@ -155,7 +157,40 @@ namespace ioDelaunay
                     }
             }
             
+            //Draw Voronoi Bounds Rect
+            if (_v != null)
+            {
+                var dBnds = new Rectf(_v.DBounds);
+                dBnds.center = dBnds.center - originOffset;
+                
+            
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    g.SmoothingMode = SmoothingMode.None;
+                    g.InterpolationMode = InterpolationMode.Low;
+                    g.PixelOffsetMode = PixelOffsetMode.None;
+                    var pen = new Pen(Color.Orange);
+                    g.DrawRectangle(pen, dBnds.xMin, dBnds.yMin, dBnds.width, dBnds.height);
+                }                
+            }
+            
+            //Temp
+            /*
+            {
+                var cent = _d.BoundsRect.center - originOffset;
+                var v1 = _v.Points[1970] - originOffset;
+                
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    g.SmoothingMode = SmoothingMode.None;
+                    g.InterpolationMode = InterpolationMode.Low;
+                    g.PixelOffsetMode = PixelOffsetMode.None;
+                    var pen = new Pen(Color.Yellow);
+                    g.DrawLine(pen, cent.x, cent.y, v1.x, v1.y);
 
+                }
+            }*/
+            
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
             bitmap.Save(path);
         }

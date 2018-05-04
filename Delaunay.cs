@@ -9,7 +9,6 @@ namespace ioDelaunay
 {
     public partial class Delaunay : PolygonGraph
     {
-        protected HashSet<Guid> m_CheckedTris;
         public int[] HullIdxs;
 
         private Triangulator m_Triangulator;
@@ -17,9 +16,23 @@ namespace ioDelaunay
         public Delaunay(Vector2f[] _points)
             : base(_points)
         {
-            m_CheckedTris = new HashSet<Guid>();
             m_Triangulator = new CircleSweep();
+            m_Triangulator.SetD(this);//TODO this is wonky
         }
+        
+        public void Triangulate(IEnumerable<Vector2f> _points)
+        {
+            m_Points.Clear();
+            m_Polys.Clear();
+            m_Vertices.Clear();
+            m_PolysContainingVert.Clear();
+            m_BoundsRect = Rectf.zero;
+
+            AddVertices(_points);
+
+            Triangulate();
+        }
+
 
         public Triangle[] Triangles => m_Polys.Values.Cast<Triangle>().ToArray();
 
@@ -143,7 +156,7 @@ namespace ioDelaunay
 
         public class Triangle : Poly, IDelaunayObj
         {
-            public static int DebugAddTriCnt = 0;
+            //public static int DebugAddTriCnt = 0; TODO
             public Triangle(int[] _vertIdxs, Delaunay _d)
                 : base(_vertIdxs, true, _d)
             {
@@ -166,11 +179,11 @@ namespace ioDelaunay
                     Reform(_vertIdxs[0], _vertIdxs[2], _vertIdxs[1]);
                 else if (angleCCW == 0)
                     throw new Exception("new Triangle - Striaght line"); //TODO Handle this
-                if(DebugAddTriCnt != 0)//TODO debug
-                    DebugVisualizer.Visualize(D, null, "addTri" + DebugAddTriCnt);
-                if(DebugAddTriCnt == 45)
-                    Console.WriteLine("Debug");
-                DebugAddTriCnt++;
+                //if(DebugAddTriCnt != 0)//TODO debug
+                //    DebugVisualizer.Visualize(D, null, "addTri" + DebugAddTriCnt);
+                //if(DebugAddTriCnt == 45)
+                //    Console.WriteLine("Debug");
+                //DebugAddTriCnt++;
             }
 
             public Delaunay D { get; }

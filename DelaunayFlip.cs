@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Dynamic;
 using System.Linq;
 using Vectorf;
@@ -12,7 +13,7 @@ namespace ioDelaunay
         public HashSet<int> LegalizeAll()
         {
             var tris = Triangles;
-            var eMarked = new HashSet<FEdge>();
+            var eMarked = new HashSet<FEdge>(new FEdge.FEdgeComparer());
             var eStack = new Stack<FEdge>();
             var affectedVerts = new HashSet<int>();
 
@@ -25,23 +26,44 @@ namespace ioDelaunay
                         eMarked.Add(fEdge);
                         eStack.Push(fEdge);
                     }
-            
+
+            var debugIter = 0; //TODO
             while (eStack.Count != 0)
             {
                 var fEdge = eStack.Pop();
                 eMarked.Remove(fEdge);
                 if (!fEdge.Exists) continue;
                 if (IsDelaunay(fEdge)) continue;
-                FEdge[] _outerEdges;
+                FEdge[] _outerEdges = null;
+                if(debugIter == 26)
+                    Console.WriteLine("Debug"); //TODO
                 affectedVerts.UnionWith(fEdge.Flip(out _outerEdges));
+                //Debug
+                {
+                    foreach (var dfe in eStack)
+                    {
+                        if(dfe.vA2Idx == dfe.vB2Idx)
+                            Console.WriteLine("Debug");
+                    }
+                }
+                DebugVisualizer.Visualize(this, null, "legal" + debugIter++); //TODO
                 foreach (var oEdge in _outerEdges)
                 {
                     var debugHC = oEdge.GetHashCode();
                     Console.WriteLine(debugHC.ToString());
                     if (!eMarked.Contains(oEdge))
                     {
+                        {//TODO DEBUG
+                            foreach (var dedge in eStack)
+                            {
+                                if((oEdge.vAB0Idx == dedge.vAB0Idx && oEdge.vAB1Idx == dedge.vAB1Idx) ||
+                                   (oEdge.vAB0Idx == dedge.vAB1Idx && oEdge.vAB1Idx == dedge.vAB0Idx))
+                                    Console.WriteLine("Debug");
+                            }
+                        }
                         eMarked.Add(oEdge);
                         eStack.Push(oEdge);
+                        
                     } 
                 }
                     
@@ -53,7 +75,7 @@ namespace ioDelaunay
         public HashSet<int> Legalize(Guid _startTriID)
         {
             var eStack = new Stack<FEdge>();
-            var eMarked = new HashSet<FEdge>();
+            var eMarked = new HashSet<FEdge>(new FEdge.FEdgeComparer());
             var affectedVerts = new HashSet<int>();
             foreach (var hEdge in m_Polys[_startTriID].Edges)
                 if (hEdge.Twin != null)
@@ -178,6 +200,20 @@ namespace ioDelaunay
                 vAB1Idx = _he.NextEdge.OriginIdx;
             }
 
+            public class FEdgeComparer : IEqualityComparer<FEdge>
+            {
+                public bool Equals(FEdge _x, FEdge _y)
+                {
+                    return (_x.vAB0Idx == _y.vAB1Idx && _x.vAB1Idx == _y.vAB0Idx) ||
+                        (_x.vAB0Idx == _y.vAB0Idx && _x.vAB1Idx == _y.vAB1Idx);
+                }
+
+                public int GetHashCode(FEdge _obj)
+                {
+                    return _obj.GetHashCode();
+                }
+            }
+            
             public bool Exists
             {
                 get

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using ioPolygonGraph;
 using Vectorf;
@@ -113,9 +114,6 @@ namespace ioDelaunay
             
             for (var rIdx = 3; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
-                //var debug1 = frontier.DebugScanForTwin();
-                //if (debug1.Count != 0)
-                //    Console.WriteLine(debug1.ToString());
                 var ofVertIdx = m_VertIdxsByR[rIdx];
                 var ofVert = Vertices[ofVertIdx];
 
@@ -124,9 +122,6 @@ namespace ioDelaunay
                 var fntVerts = frontier.Project(thetaHit);
 
                 // 2) Create Tri and Legalize
-                //debug1 = frontier.DebugScanForTwin();
-                //if (debug1.Count != 0)
-                //    Console.WriteLine(debug1.ToString());
                 var tri = D.AddTriToMesh(ofVertIdx, fntVerts[0].EdgeRight);
 
                 var newFntPt = frontier.Add(ofVert, tri, fntVerts[0], fntVerts[1]);
@@ -146,9 +141,26 @@ namespace ioDelaunay
                 // 6) Check / Fill Basin Left
                 FillBasin(RL.Left, newFntPt.VertIdx);
             }
-
+            
             // 7) Finalize
-            Hull();
+            FinalizeHull();
+
+        }
+
+        protected override void Hull()
+        {
+            var fScan = frontier.Project(0)[0];
+            Frontier.FrontierPt fStart = fScan;
+            var hullIdxs = new List<int>() {fStart.VertIdx};
+            fScan = fScan.Right;
+            while (fScan.VertIdx != fStart.VertIdx)
+            {
+                hullIdxs.Add(fScan.VertIdx);
+                fScan = fScan.Right;
+            }
+
+            D.HullIdxs = hullIdxs.ToArray();
+
         }
 
         private void LegalizeFrontier(HashSet<int> _affectedVerts)
@@ -272,15 +284,15 @@ namespace ioDelaunay
             }
         }
 
-        protected override void Hull()
+        protected void FinalizeHull()
         {
-            var hullIdxs = new List<int>();
             var fStart = frontier.Project(0)[0];
             var fScan = fStart;
             var firstScanDone = false;
             var maxHullAngle = Settings.ForceConvexHull
                 ? Math.PI - float.Epsilon
                 : Settings.MaxHullAngleDegrees * (float) (Math.PI / 180f);
+
             while (fScan.VertIdx != fStart.VertIdx || !firstScanDone)
             {
                 var vecL = fScan.Left.Vert.Pos - fScan.Vert.Pos;
@@ -294,7 +306,11 @@ namespace ioDelaunay
                         break;
                     fScan = fScan.Left;
                     if (fStart.VertIdx == fScan.Right.VertIdx)
-                        fStart = fScan.Left;
+                    {
+                        fStart = fStart.Right;
+                        firstScanDone = false;
+                    }
+                        
                     frontier.Remove(fScan.Right);
                     var changedVerts = D.Legalize(newTri.ID);
                     LegalizeFrontier(changedVerts);
@@ -303,12 +319,10 @@ namespace ioDelaunay
                     vecR = fScan.Right.Vert.Pos - fScan.Vert.Pos;
                 }
 
-                hullIdxs.Add(fScan.VertIdx);
                 fScan = fScan.Right;
-                if (!firstScanDone) firstScanDone = true;
+                if (!firstScanDone && fScan.VertIdx != fStart.VertIdx) firstScanDone = true;
             }
 
-            D.HullIdxs = hullIdxs.ToArray();
         }
 
         private PolygonGraph.Vertex[] GetVerts(int[] _vertIdxs)
@@ -592,7 +606,7 @@ namespace ioDelaunay
             /// <summary>
             ///     When finishing hull, sets the max angle at which a tri will be added.
             /// </summary>
-            public static float MaxHullAngleDegrees = 135f;
+            public static float MaxHullAngleDegrees = 177f;
         }
 
         private class PolartPt : ICircleSweepObj

@@ -10,17 +10,15 @@ namespace ioPolygonGraph
         protected Rectf m_BoundsRect = Rectf.zero;
         public Rectf BoundsRect => m_BoundsRect;
         protected List<Vector2f> m_Points;
-        protected readonly Dictionary<Guid, Poly> m_Polys;
-        protected readonly List<Vertex> m_Vertices;
+        protected Dictionary<Guid, Poly> m_Polys;
+        protected List<Vertex> m_Vertices;
+        
 
         protected List<HashSet<Guid>> m_PolysContainingVert;
         
         
         
-        public Vector2f[] Points
-        {
-            get { return m_Vertices.Select(_vert => _vert.Pos).ToArray(); }
-        }
+        public Vector2f[] Points => m_Points.ToArray();
 
         protected PolygonGraph()
         {
@@ -29,7 +27,7 @@ namespace ioPolygonGraph
             m_Vertices = new List<Vertex>();
             m_PolysContainingVert = new List<HashSet<Guid>>();
         }
-        
+
         protected PolygonGraph(Vector2f[] _points)
         {
             m_Points = _points.ToList();
@@ -69,6 +67,16 @@ namespace ioPolygonGraph
 
         }
 
+        public void CleanVerts()
+        {
+            //TODO
+        }
+        //TODO Clean function if there are unused verts
+        protected bool RemoveVerts(IEnumerable<int> _vertIdxs)
+        {
+            return false; //TODO
+        }
+
         public class Vertex : IPolyGraphObj
         {
             public readonly int Idx;
@@ -101,7 +109,8 @@ namespace ioPolygonGraph
         {
             private const int HALFEDGE_NULL_IDX = -1;
             public readonly Guid ID;
-            protected bool Closed;
+
+            public bool Closed;
 
             protected int[] m_EdgeOrigins;
 
@@ -182,8 +191,17 @@ namespace ioPolygonGraph
 
             public class HalfEdge : IPolyGraphObj
             {
-                public readonly int OriginIdx;
+                public int OriginIdx;
                 public readonly Guid PolyID;
+
+                public Vector2f AsVector
+                {
+                    get
+                    {
+                        if (NextEdge == null) return Vector2f.zero;
+                        return NextEdge.Origin.Pos - Origin.Pos;
+                    }
+                }
 
                 public HalfEdge(Poly _poly, int _originIdx, PolygonGraph _g)
                 {
@@ -204,7 +222,7 @@ namespace ioPolygonGraph
                         return Poly.Closed ? Poly.EdgeWithOrigin(Poly.m_EdgeOrigins[0]) : null;
                     }
                 }
-
+                
                 public Poly Poly => G.GetPoly(PolyID);
 
                 public int EdgeIdx => Poly.m_OriginToEdgeIdx[OriginIdx];
