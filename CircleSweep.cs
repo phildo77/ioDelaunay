@@ -115,23 +115,22 @@ namespace ioDelaunay
             for (var rIdx = 3; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
                 var ofVertIdx = m_VertIdxsByR[rIdx];
-                var ofVert = Vertices[ofVertIdx];
 
                 // 1) Project
-                var thetaHit = PolPos(ofVert.Idx).Theta;
+                var thetaHit = PolPos(ofVertIdx).Theta;
                 var fntVerts = frontier.Project(thetaHit);
 
                 // 2) Create Tri and Legalize
                 var tri = D.AddTriToMesh(ofVertIdx, fntVerts[0].EdgeRight);
 
-                var newFntPt = frontier.Add(ofVert, tri, fntVerts[0], fntVerts[1]);
+                var newFntPt = frontier.Add(ofVertIdx, tri, fntVerts[0], fntVerts[1]);
 
                 var fiData = D.Legalize(tri.ID);
                 LegalizeFrontier(fiData);
 
                 // 3) Walk Left
                 Walk(RL.Left, newFntPt.VertIdx);
-
+                
                 // 4) Walk Right
                 Walk(RL.Right, newFntPt.VertIdx);
 
@@ -181,9 +180,9 @@ namespace ioDelaunay
         {
             var cent = Bounds.center;
             var closest = new SortedList<float, int>();
-            for (var idx = 0; idx < Points.Length; ++idx)
+            for (var idx = 0; idx < D.Points.Count; ++idx)
             {
-                var pt = Points[idx];
+                var pt = D.Points[idx];
                 var distSqr = (cent - pt).sqrMagnitude;
                 if (closest.Count <= 3)
                 {
@@ -198,7 +197,7 @@ namespace ioDelaunay
             }
 
             var closestPoints = new[] {closest.Values[0], closest.Values[1], closest.Values[2]};
-            var triPts = new[] {Points[closestPoints[0]], Points[closestPoints[1]], Points[closestPoints[2]]};
+            var triPts = new[] {D.Points[closestPoints[0]], D.Points[closestPoints[1]], D.Points[closestPoints[2]]};
             var cc = Geom.CentroidOfPoly(triPts);
             return cc;
         }
@@ -229,8 +228,8 @@ namespace ioDelaunay
             var fBasEnd = fBasMin;
             while (true)
             {
-                var vecL = fBasEnd[RL.Left].Vert.Pos - fBasEnd.Vert.Pos;
-                var vecR = fBasEnd[RL.Right].Vert.Pos - fBasEnd.Vert.Pos;
+                var vecL = fBasEnd[RL.Left].Pos - fBasEnd.Pos;
+                var vecR = fBasEnd[RL.Right].Pos - fBasEnd.Pos;
                 var angleCW = vecL.AngleCW(vecR);
                 if (angleCW >= Math.PI - float.Epsilon) break;
                 fBasEnd = fBasEnd[_dir];
@@ -266,8 +265,8 @@ namespace ioDelaunay
                     fOut = frontier.GetHaving(newVerts[1]);
 
                 //Check that tri is valid (due to radius from Origin)
-                var vecLt = fOut.Left.Vert.Pos - fOut.Vert.Pos;
-                var vecRt = fOut.Right.Vert.Pos - fOut.Vert.Pos;
+                var vecLt = fOut.Left.Pos - fOut.Pos;
+                var vecRt = fOut.Right.Pos - fOut.Pos;
                 if (vecLt.AngleCW(vecRt) >= Math.PI - float.Epsilon) break;
 
                 var twinLt = fOut[RL.Left].EdgeRight;
@@ -295,8 +294,8 @@ namespace ioDelaunay
 
             while (fScan.VertIdx != fStart.VertIdx || !firstScanDone)
             {
-                var vecL = fScan.Left.Vert.Pos - fScan.Vert.Pos;
-                var vecR = fScan.Right.Vert.Pos - fScan.Vert.Pos;
+                var vecL = fScan.Left.Pos - fScan.Pos;
+                var vecR = fScan.Right.Pos - fScan.Pos;
                 while (vecL.AngleCW(vecR) < maxHullAngle)
                 {
                     var twinLt = fScan.Left.EdgeRight;
@@ -315,8 +314,8 @@ namespace ioDelaunay
                     var changedVerts = D.Legalize(newTri.ID);
                     LegalizeFrontier(changedVerts);
 
-                    vecL = fScan.Left.Vert.Pos - fScan.Vert.Pos;
-                    vecR = fScan.Right.Vert.Pos - fScan.Vert.Pos;
+                    vecL = fScan.Left.Pos - fScan.Pos;
+                    vecR = fScan.Right.Pos - fScan.Pos;
                 }
 
                 fScan = fScan.Right;
@@ -325,26 +324,41 @@ namespace ioDelaunay
 
         }
 
-        private PolygonGraph.Vertex[] GetVerts(int[] _vertIdxs)
-        {
-            return _vertIdxs.Select(_idx => Vertices[_idx]).ToArray();
-        }
 
         private void Init()
         {
             Origin = CalcOrigin();
-            m_PolPos = Points.Select(_pt => new PolartPt(_pt, Origin, this)).ToArray();
+            m_PolPos = D.Points.Select(_pt => new PolartPt(_pt, Origin, this)).ToArray();
 
-            m_VertIdxsByR = new int[Vertices.Length];
-            var tempVertIdxs = new List<int>();
-            for (var idx = 0; idx < Vertices.Length; ++idx)
-                tempVertIdxs.Add(idx);
+            m_VertIdxsByR = new int[D.Points.Count];
+            var vertIdxsToSort = new List<int>();
+            for (var idx = 0; idx < D.Points.Count; ++idx)
+                vertIdxsToSort.Add(idx);
 
-            m_VertIdxsByR = tempVertIdxs.OrderBy(_idx => m_PolPos[_idx].r).ToArray();
-
+            //Sort CW
+            m_VertIdxsByR = vertIdxsToSort.OrderBy(_idx => m_PolPos[_idx].r).ToArray();
+            
+            
             //Init Frontier
             var triVertIdxs = new[] {m_VertIdxsByR[0], m_VertIdxsByR[1], m_VertIdxsByR[2]};
+            //Sort points clockwise
+            var v0 = D.Points[triVertIdxs[0]];
+            var v1 = D.Points[triVertIdxs[1]];
+            var v2 = D.Points[triVertIdxs[2]];
 
+            //Force Clockwise
+            var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
+            if (angleCCW > 0)
+            {
+                var tempIdx = triVertIdxs[1];
+                triVertIdxs[1] = triVertIdxs[2];
+                triVertIdxs[2] = tempIdx;
+            }
+            else if (angleCCW == 0)
+                throw new Exception("new Triangle - Striaght line"); //TODO Handle this?
+
+            
+            
             var firstTri = new Delaunay.Triangle(triVertIdxs, D);
 
             frontier = new Frontier(firstTri, this);
@@ -355,11 +369,6 @@ namespace ioDelaunay
             return m_PolPos[_vertIdx];
         }
 
-        private PolartPt PolPos(PolygonGraph.Vertex _vert)
-        {
-            return m_PolPos[_vert.Idx];
-        }
-
         private void Walk(RL _dir, int _viIdx)
         {
             var fvi = frontier.GetHaving(_viIdx);
@@ -368,8 +377,8 @@ namespace ioDelaunay
             {
                 var fvn = fvi[_dir];
 
-                var vecL = fvn[RL.Left].Vert.Pos - fvn.Vert.Pos;
-                var vecR = fvn[RL.Right].Vert.Pos - fvn.Vert.Pos;
+                var vecL = fvn[RL.Left].Pos - fvn.Pos;
+                var vecR = fvn[RL.Right].Pos - fvn.Pos;
 
                 var angleCW = vecL.AngleCW(vecR);
                 if (angleCW > Math.PI / 2f) break;
@@ -379,6 +388,7 @@ namespace ioDelaunay
                 var newTri = D.AddTriToMesh(twinLt, twinRt);
                 if (newTri == null) break;
                 frontier.Remove(fvn);
+                
                 var changedVerts = D.Legalize(newTri.ID);
                 LegalizeFrontier(changedVerts);
             }
@@ -394,11 +404,13 @@ namespace ioDelaunay
                 CS = _cs;
                 m_FPList = new FPList(_cs);
 
-                var verts = _firstTri.VertIdxs.Select(_id => CS.Vertices[_id]).ToArray();
-
-                var ftPts = _firstTri.Verts
-                    .Select(_vert => new FrontierPt(_vert.Idx, _firstTri.EdgeWithOrigin(_vert.Idx), CS)).ToArray();
-
+                var ftPts = new List<FrontierPt>();
+                for (int eIdx = 0; eIdx < 3; ++eIdx)
+                {
+                    var edge = _firstTri.Edge(eIdx);
+                    ftPts.Add(new FrontierPt(edge.OriginIdx, edge, CS));
+                }
+                
                 ftPts[0].Right = ftPts[1];
                 ftPts[0].Left = ftPts[2];
                 ftPts[1].Right = ftPts[2];
@@ -413,11 +425,11 @@ namespace ioDelaunay
 
             public CircleSweep CS { get; }
 
-            public FrontierPt Add(PolygonGraph.Vertex _newVert, Delaunay.Triangle _newTri, FrontierPt _fLt,
+            public FrontierPt Add(int _vIdx, Delaunay.Triangle _newTri, FrontierPt _fLt,
                 FrontierPt _fRt)
             {
-                var newEdge = _newTri.EdgeWithOrigin(_newVert.Idx);
-                var fNew = new FrontierPt(_newVert.Idx, newEdge, CS);
+                var newEdge = _newTri.EdgeWithOrigin(_vIdx);
+                var fNew = new FrontierPt(_vIdx, newEdge, CS);
 
                 _fLt.Right = _fRt.Left = fNew;
                 _fLt.EdgeRight = _newTri.EdgeWithOrigin(_fLt.VertIdx);
@@ -493,6 +505,7 @@ namespace ioDelaunay
                 }
 
                 public readonly int VertIdx;
+                public Vector2f Pos => CS.D.Points[VertIdx];
 
                 public int EdgeRightIdx { get; private set; }
 
@@ -500,8 +513,6 @@ namespace ioDelaunay
                 public FrontierPt Right;
                 public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
                 public Guid TriRightID { get; private set; }
-
-                public PolygonGraph.Vertex Vert => CS.Vertices[VertIdx];
 
                 public CircleSweep CS { get; }
 
@@ -523,9 +534,8 @@ namespace ioDelaunay
 
                 public override string ToString()
                 {
-                    var v = (Vert ?? (object) "").ToString();
                     var er = (EdgeRight ?? (object) "").ToString();
-                    return "Fnt Pt v: " + v + " RtV: " + Right.Vert.Idx + " LtV: " + Left.Vert.Idx + " EdgeRt: " + er;
+                    return "Fnt Pt v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " + Left.VertIdx + " EdgeRt: " + er;
                 }
             }
 

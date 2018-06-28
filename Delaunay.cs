@@ -22,9 +22,8 @@ namespace ioDelaunay
         
         public void Triangulate(IEnumerable<Vector2f> _points)
         {
-            m_Points.Clear();
+            Points.Clear();
             m_Polys.Clear();
-            m_Vertices.Clear();
             m_PolysContainingVert.Clear();
             m_BoundsRect = Rectf.zero;
 
@@ -45,21 +44,10 @@ namespace ioDelaunay
                 for (var tIdx = 0; tIdx < tris.Length; ++tIdx)
                 for (var vIdx = 0; vIdx < 3; ++vIdx)
                     triIdxs[tIdx * 3 + vIdx] = tris[tIdx].Edge(vIdx).OriginIdx;
-                return new Mesh(Points, triIdxs);
+                return new Mesh(Points.ToArray(), triIdxs);
             }
         }
 
-        public HashSet<int> DebugForceAllLegalize()
-        {
-            var affectedVerts = new HashSet<int>();
-            foreach (var triID in m_Polys.Keys)
-            {
-                affectedVerts = Legalize(triID);
-            }
-
-            return affectedVerts;
-        }
-        
         public Triangulator triangulator
         {
             get { return m_Triangulator; }
@@ -119,12 +107,6 @@ namespace ioDelaunay
             return newTri;
         }
 
-
-        public Triangle Tri(Guid _triID)
-        {
-            return (Triangle) m_Polys[_triID];
-        }
-
         public void Triangulate()
         {
             m_Triangulator.Triangulate();
@@ -138,9 +120,9 @@ namespace ioDelaunay
                 return false;
 
             //Check for stright line
-            var v0 = m_Vertices[_v0].Pos;
-            var v1 = m_Vertices[_v1].Pos;
-            var v2 = m_Vertices[_v2].Pos;
+            var v0 = Points[_v0];
+            var v1 = Points[_v1];
+            var v2 = Points[_v2];
 
             var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
             if (angleCCW < float.Epsilon && angleCCW > -float.Epsilon)
@@ -156,7 +138,14 @@ namespace ioDelaunay
 
         public class Triangle : Poly, IDelaunayObj
         {
-            //public static int DebugAddTriCnt = 0; TODO
+
+            public TriEdgeData[] EdgeData;
+
+            public TriEdgeData EdgeDataWithOrigin(int _idx)
+            {
+                return EdgeData[m_OriginToEdgeIdx[_idx]];
+            }
+            
             public Triangle(int[] _vertIdxs, Delaunay _d)
                 : base(_vertIdxs, true, _d)
             {
@@ -168,42 +157,62 @@ namespace ioDelaunay
 
                 D = _d;
 
-                //Sort points clockwise
-                var v0 = D.m_Vertices[_vertIdxs[0]].Pos;
-                var v1 = D.m_Vertices[_vertIdxs[1]].Pos;
-                var v2 = D.m_Vertices[_vertIdxs[2]].Pos;
-
-                //Force Clockwise
-                var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
-                if (angleCCW > 0)
-                    Reform(_vertIdxs[0], _vertIdxs[2], _vertIdxs[1]);
-                else if (angleCCW == 0)
-                    throw new Exception("new Triangle - Striaght line"); //TODO Handle this
-                //if(DebugAddTriCnt != 0)//TODO debug
-                //    DebugVisualizer.Visualize(D, null, "addTri" + DebugAddTriCnt);
-                //if(DebugAddTriCnt == 45)
-                //    Console.WriteLine("Debug");
-                //DebugAddTriCnt++;
+                EdgeData = new TriEdgeData[3];
+                
+                for (int eIdx = 0; eIdx < 3; ++eIdx)
+                    EdgeData[eIdx] = new TriEdgeData(Edges[eIdx]);
+                
             }
 
             public Delaunay D { get; }
 
             public void CircumCircle(out Vector2f _center, out float _r)
             {
-                Geom.Circumcircle(Verts[0].Pos, Verts[1].Pos, Verts[2].Pos, out _center, out _r);
+                Geom.Circumcircle(Edges[0].OriginPos, Edges[1].OriginPos, Edges[2].OriginPos, out _center, out _r);
             }
-
-            public void Reform(int _vIdx0, int _vIdx1, int _vIdx2)
-            {
-                Reform(new[] {_vIdx0, _vIdx1, _vIdx2});
-            }
-
             
-            
-            public class HullEdge : HalfEdge
+            public class TriEdgeData
             {
-                public HullEdge(Poly _poly, int _originIdx, PolygonGraph _g) : base(_poly, _originIdx, _g)
+                public int vA2Idx => m_Edge.NextEdge.NextEdge.OriginIdx;
+                public int vB2Idx => m_Edge.Twin.NextEdge.NextEdge.OriginIdx;
+                public readonly int vAB0Idx;
+                public readonly int vAB1Idx;
+
+                private readonly HalfEdge m_Edge;
+                public HalfEdge Edge => m_Edge;
+
+                public TriEdgeData(HalfEdge _edge)
                 {
+                    m_Edge = _edge;
+                    vAB0Idx = _edge.OriginIdx;
+                    vAB1Idx = _edge.NextEdge.OriginIdx;
+                    D = (Delaunay) _edge.G;
+                }
+            
+                public Delaunay D { get; }
+            
+                public bool IsDelaunay
+                {
+                    get
+                    {
+                        var a2 = D.Points[vA2Idx];
+                        var b2 = D.Points[vB2Idx];
+                        var ab0 = D.Points[vAB0Idx];
+                        var ab1 = D.Points[vAB1Idx];
+                        Vector2f ccCent;
+                        float ccRad;
+                        if (!Geom.Circumcircle(a2, ab0, ab1, out ccCent, out ccRad))
+                            throw new Exception("TODO - THIS IS PROBABLY A LINE"); //TODO check for line?
+
+                        var distToCentSqr = (b2 - ccCent).sqrMagnitude;
+                        if (!(distToCentSqr >= ccRad * ccRad)) 
+                            return false;
+            
+                        if (!Geom.Circumcircle(b2, ab1, ab0, out ccCent, out ccRad))
+                            throw new Exception("TODO - THIS IS PROBABLY A LINE"); //TODO check for line?
+
+                        return (a2 - ccCent).sqrMagnitude >= ccRad * ccRad;
+                    }
                 }
             }
         }
@@ -211,10 +220,8 @@ namespace ioDelaunay
         public abstract class Triangulator
         {
             protected Delaunay D;
-            protected Vector2f[] Points => D.Points;
             protected Dictionary<Guid, Poly> Polys => D.m_Polys;
-            protected HashSet<Guid>[] PolysContainingVert => D.m_PolysContainingVert.ToArray();
-            protected Vertex[] Vertices => D.m_Vertices.ToArray();
+            protected List<HashSet<Guid>> PolysContainingVert => D.m_PolysContainingVert;
 
             public void SetD(Delaunay _d)
             {

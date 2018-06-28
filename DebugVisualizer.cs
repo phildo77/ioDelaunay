@@ -15,9 +15,10 @@ namespace ioDelaunay
         private static Color m_ColorFont = Color.BurlyWood;
         private static readonly Color m_ColorCircles = Color.Aquamarine;
         private static readonly Color m_ColorVor = Color.DodgerBlue;
-
+        public static bool Enabled = false;
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
+            if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
             var bitmap = new Bitmap((int) (2000), (int) (2000));
             var originOffset = _d.BoundsRect.min;
@@ -31,10 +32,10 @@ namespace ioDelaunay
                 for (var idx = 0; idx < 3; ++idx)
                 {
                     var edge = tri.Edge(idx);
-                    var x1 = edge.Origin.Pos.x - originOffset.x;
-                    var y1 = edge.Origin.Pos.y - originOffset.y;
-                    var x2 = edge.NextEdge.Origin.Pos.x - originOffset.x;
-                    var y2 = edge.NextEdge.Origin.Pos.y - originOffset.y;
+                    var x1 = edge.OriginPos.x - originOffset.x;
+                    var y1 = edge.OriginPos.y - originOffset.y;
+                    var x2 = edge.NextEdge.OriginPos.x - originOffset.x;
+                    var y2 = edge.NextEdge.OriginPos.y - originOffset.y;
 
                     using (var g = Graphics.FromImage(bitmap))
                     {
@@ -59,10 +60,10 @@ namespace ioDelaunay
             var firstMoveDone = false;
             while (fPt.VertIdx != fpStart.VertIdx || firstMoveDone == false)
             {
-                var x1 = fPt.Vert.Pos.x - originOffset.x;
-                var y1 = fPt.Vert.Pos.y - originOffset.y;
-                var x2 = fPt.Right.Vert.Pos.x - originOffset.x;
-                var y2 = fPt.Right.Vert.Pos.y - originOffset.y;
+                var x1 = fPt.Pos.x - originOffset.x;
+                var y1 = fPt.Pos.y - originOffset.y;
+                var x2 = fPt.Right.Pos.x - originOffset.x;
+                var y2 = fPt.Right.Pos.y - originOffset.y;
 
                 using (var g = Graphics.FromImage(bitmap))
                 {
@@ -121,18 +122,18 @@ namespace ioDelaunay
             {
                 var sites = _v.Sites;
                 foreach (var site in sites)
-                    for (var idx = 0; idx < site.VertIdxs.Length; ++idx)
+                    for (var idx = 0; idx < site.VertIdxs.Count; ++idx)
                     {
-                        if (idx == site.VertIdxs.Length - 1 && !site.Closed) break;
+                        if (idx == site.VertIdxs.Count - 1 && !site.Closed) break;
                         try
                         {
                             if (site.VertDelIdx == 400) //TODO DEBUG
                                 Console.WriteLine("Debug");
                             var edge = site.Edge(idx);
-                            var x1 = edge.Origin.Pos.x - originOffset.x;
-                            var y1 = edge.Origin.Pos.y - originOffset.y;
-                            var x2 = edge.NextEdge.Origin.Pos.x - originOffset.x;
-                            var y2 = edge.NextEdge.Origin.Pos.y - originOffset.y;
+                            var x1 = edge.OriginPos.x - originOffset.x;
+                            var y1 = edge.OriginPos.y - originOffset.y;
+                            var x2 = edge.NextEdge.OriginPos.x - originOffset.x;
+                            var y2 = edge.NextEdge.OriginPos.y - originOffset.y;
 
                             using (var g = Graphics.FromImage(bitmap))
                             {
@@ -205,6 +206,7 @@ namespace ioDelaunay
         
         public static void Visualize(Delaunay.Voronoi _v, string _fileName = "debugVoronoi2")
         {
+            if (!Enabled) return;
             var bitmap = new Bitmap((int) (_v.BoundsRect.width * 1.2f), (int) (_v.BoundsRect.height * 1.2f));
             var originOffset = _v.BoundsRect.min;
             var vectTextDrawn = new HashSet<int>();
@@ -214,16 +216,16 @@ namespace ioDelaunay
             var rand = new Random((int)DateTime.Now.Ticks);
             var sites = _v.Sites;
             foreach (var site in sites)
-                for (var idx = 0; idx < site.VertIdxs.Length; ++idx)
+                for (var idx = 0; idx < site.VertIdxs.Count; ++idx)
                 {
                     
                     try
                     {
                         var edge = site.Edge(idx);
-                        var x1 = edge.Origin.Pos.x - originOffset.x;
-                        var y1 = edge.Origin.Pos.y - originOffset.y;
-                        var x2 = edge.NextEdge.Origin.Pos.x - originOffset.x;
-                        var y2 = edge.NextEdge.Origin.Pos.y - originOffset.y;
+                        var x1 = edge.OriginPos.x - originOffset.x;
+                        var y1 = edge.OriginPos.y - originOffset.y;
+                        var x2 = edge.NextEdge.OriginPos.x - originOffset.x;
+                        var y2 = edge.NextEdge.OriginPos.y - originOffset.y;
 
                         using (var g = Graphics.FromImage(bitmap))
                         {

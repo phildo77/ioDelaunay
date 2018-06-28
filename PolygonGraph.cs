@@ -1,45 +1,39 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ioDelaunay;
 using Vectorf;
 
 namespace ioPolygonGraph
 {
+    
     public abstract class PolygonGraph
     {
         protected Rectf m_BoundsRect = Rectf.zero;
         public Rectf BoundsRect => m_BoundsRect;
-        protected List<Vector2f> m_Points;
+        public List<Vector2f> Points;
         protected Dictionary<Guid, Poly> m_Polys;
-        protected List<Vertex> m_Vertices;
         
 
         protected List<HashSet<Guid>> m_PolysContainingVert;
-        
-        
-        
-        public Vector2f[] Points => m_Points.ToArray();
 
         protected PolygonGraph()
         {
             m_Polys = new Dictionary<Guid, Poly>();
-            m_Points = new List<Vector2f>();
-            m_Vertices = new List<Vertex>();
+            Points = new List<Vector2f>();
             m_PolysContainingVert = new List<HashSet<Guid>>();
         }
 
         protected PolygonGraph(Vector2f[] _points)
         {
-            m_Points = _points.ToList();
-            m_Vertices = new List<Vertex>();
+            Points = _points.ToList();
             m_Polys = new Dictionary<Guid, Poly>();
             m_PolysContainingVert = new List<HashSet<Guid>>();
-            var bndsRect = new Rectf(m_Points[0], Vector2f.zero);
-            for (var idx = 0; idx < m_Points.Count; ++idx)
+            var bndsRect = new Rectf(Points[0], Vector2f.zero);
+            for (var idx = 0; idx < Points.Count; ++idx)
             {
-                m_Vertices.Add(new Vertex(idx, this));
                 m_PolysContainingVert.Add(new HashSet<Guid>());
-                bndsRect.Encapsulate(m_Points[idx]);
+                bndsRect.Encapsulate(Points[idx]);
             }
 
             m_BoundsRect = bndsRect;
@@ -52,8 +46,7 @@ namespace ioPolygonGraph
 
         public void AddVertex(Vector2f _vertex)
         {
-            m_Points.Add(_vertex);
-            m_Vertices.Add(new Vertex(m_Points.Count - 1, this));
+            Points.Add(_vertex);
             m_PolysContainingVert.Add(new HashSet<Guid>());
             if(BoundsRect == Rectf.zero)
                 m_BoundsRect = new Rectf(_vertex, Vector2f.zero);
@@ -66,6 +59,17 @@ namespace ioPolygonGraph
                 AddVertex(vert);
 
         }
+        
+        public void RemovePoly(Guid _id)
+        {
+            var poly = m_Polys[_id];
+            foreach (var edge in poly.Edges)
+            {
+                edge.Twin = null;
+                m_PolysContainingVert[edge.OriginIdx].Remove(_id);
+                m_Polys.Remove(_id);
+            }
+        }
 
         public void CleanVerts()
         {
@@ -77,45 +81,12 @@ namespace ioPolygonGraph
             return false; //TODO
         }
 
-        public class Vertex : IPolyGraphObj
-        {
-            public readonly int Idx;
-
-            public Vertex(int _idx, PolygonGraph _g)
-            {
-                G = _g;
-                Idx = _idx;
-            }
-
-            public Vector2f Pos => G.m_Points[Idx];
-
-            public float x => Pos.x;
-            public float y => Pos.y;
-            public PolygonGraph G { get; }
-
-            public override string ToString()
-            {
-                return "Vrt Idx: " + Idx + " Pos: " + Pos;
-            }
-
-            public void SetPosition(Vector2f _pos)
-            {
-                G.m_Points[Idx] = _pos;
-            }
-        }
-
-
         public class Poly : IPolyGraphObj
         {
-            private const int HALFEDGE_NULL_IDX = -1;
             public readonly Guid ID;
-
             public bool Closed;
-
-            protected int[] m_EdgeOrigins;
-
-            protected Guid[] m_EdgeToNbrID;
-            protected int[] m_EdgeToTwinEdgeIdx;
+            public List<HalfEdge> Edges;
+            
             protected Dictionary<int, int> m_OriginToEdgeIdx;
 
             protected Poly(int[] _vertIdxsOrdered, bool _closed, PolygonGraph _g)
@@ -127,71 +98,88 @@ namespace ioPolygonGraph
                 Reform(_vertIdxsOrdered);
             }
 
-            public int[] VertIdxs => new List<int>(m_EdgeOrigins).ToArray();
-
-            public Vertex[] Verts
-            {
-                get { return VertIdxs.Select(_id => G.m_Vertices[_id]).ToArray(); }
-            }
-
-            public HashSet<Guid> NeighborIDs
-            {
-                get
-                {
-                    var nbrs = new HashSet<Guid>();
-                    foreach (var nbrID in m_EdgeToNbrID)
-                        if (nbrID != Guid.Empty)
-                            nbrs.Add(nbrID);
-                    return nbrs;
-                }
-            }
-
-            public HalfEdge[] Edges
-            {
-                get
-                {
-                    var edges = new HalfEdge[m_EdgeOrigins.Length];
-                    for (var eIdx = 0; eIdx < m_EdgeOrigins.Length; ++eIdx) edges[eIdx] = Edge(eIdx);
-
-                    return edges;
-                }
-            }
-
-
+            public List<int> VertIdxs => Edges.Select(_edge => _edge.OriginIdx).ToList();
+            
             public PolygonGraph G { get; }
 
             public HalfEdge EdgeWithOrigin(int _vertIdx)
             {
-                return new HalfEdge(this, _vertIdx, G);
+                return Edges[m_OriginToEdgeIdx[_vertIdx]];
             }
 
             public HalfEdge Edge(int _edgeIdx)
             {
-                return new HalfEdge(this, m_EdgeOrigins[_edgeIdx], G);
+                return Edges[_edgeIdx];
             }
 
-            public void Reform(int[] _vertIdxsOrdered)
+            private void FindAndSetTwin(int _edgeIdx)
             {
-                if (m_EdgeOrigins != null)
-                    foreach (var originIdx in m_EdgeOrigins)
-                        G.m_PolysContainingVert[originIdx].Remove(ID);
-                m_EdgeOrigins = _vertIdxsOrdered;
-                m_OriginToEdgeIdx = new Dictionary<int, int>();
-                m_EdgeToNbrID = new Guid[m_EdgeOrigins.Length];
-                m_EdgeToTwinEdgeIdx = new int[m_EdgeOrigins.Length];
-                for (var idx = 0; idx < m_EdgeOrigins.Length; ++idx)
+                var vA1Idx = -1;
+                if (_edgeIdx == Edges.Count - 1)
                 {
-                    m_EdgeToNbrID[idx] = Guid.Empty;
-                    m_EdgeToTwinEdgeIdx[idx] = HALFEDGE_NULL_IDX;
-                    m_OriginToEdgeIdx.Add(m_EdgeOrigins[idx], idx);
-                    G.m_PolysContainingVert[m_EdgeOrigins[idx]].Add(ID);
+                    if (!Closed) return;
+                    vA1Idx = Edges[0].OriginIdx;
+                }
+                else
+                    vA1Idx = Edges[_edgeIdx + 1].OriginIdx;
+                //Twins
+                var vA0Idx = Edges[_edgeIdx].OriginIdx;
+                var nbrPolys = G.m_PolysContainingVert[vA0Idx].Intersect(G.m_PolysContainingVert[vA1Idx])
+                    .Except(new HashSet<Guid> {ID}).ToList();
+                    
+                //TODO DEBUG
+                if(nbrPolys.Count > 1)
+                    Console.WriteLine("Debug");
+
+                if (nbrPolys.Count == 1)
+                {
+                    var nbrPoly = G.m_Polys[nbrPolys[0]];
+                    var twin = nbrPoly.EdgeWithOrigin(vA1Idx);
+                    if (twin.NextEdge.OriginIdx != vA0Idx)
+                        twin = nbrPoly.EdgeWithOrigin(vA0Idx);
+                    Edges[_edgeIdx].Twin = twin;
                 }
             }
 
+            
+            
+            public void Reform(int[] _vertIdxsOrdered)
+            {
+                if (Edges != null)
+                {
+                    for (int eIdx = 0; eIdx < Edges.Count; ++eIdx)
+                    {
+                        G.m_PolysContainingVert[Edges[eIdx].OriginIdx].Remove(ID);
+                        if (Edges[eIdx].Twin != null)
+                            Edges[eIdx].Twin.Twin = null;
+                    }
+                }
+                    
+                Edges = new List<HalfEdge>();
+                
+                m_OriginToEdgeIdx = new Dictionary<int, int>();
+
+                var originIdx = _vertIdxsOrdered[0];
+                Edges.Add(new HalfEdge(this, _vertIdxsOrdered[0], G));
+                m_OriginToEdgeIdx.Add(originIdx, 0);
+                G.m_PolysContainingVert[originIdx].Add(ID);
+                for (int eIdx = 1; eIdx < _vertIdxsOrdered.Length; ++eIdx)
+                {
+                    originIdx = _vertIdxsOrdered[eIdx];
+                    Edges.Add(new HalfEdge(this, originIdx, G));
+                    FindAndSetTwin(eIdx - 1);
+                    m_OriginToEdgeIdx.Add(originIdx, eIdx);
+                    G.m_PolysContainingVert[originIdx].Add(ID);
+                }
+
+                if (Closed)
+                    FindAndSetTwin(Edges.Count - 1);
+            }
 
             public class HalfEdge : IPolyGraphObj
             {
                 public int OriginIdx;
+                public Vector2f OriginPos => G.Points[OriginIdx];
                 public readonly Guid PolyID;
 
                 public Vector2f AsVector
@@ -199,7 +187,7 @@ namespace ioPolygonGraph
                     get
                     {
                         if (NextEdge == null) return Vector2f.zero;
-                        return NextEdge.Origin.Pos - Origin.Pos;
+                        return NextEdge.OriginPos - OriginPos;
                     }
                 }
 
@@ -210,16 +198,14 @@ namespace ioPolygonGraph
                     OriginIdx = _originIdx;
                 }
 
-                public Vertex Origin => G.m_Vertices[OriginIdx];
-
                 public HalfEdge NextEdge
                 {
                     get
                     {
                         var edgeIdx = EdgeIdx;
-                        if (edgeIdx != Poly.m_EdgeOrigins.Length - 1)
-                            return Poly.EdgeWithOrigin(Poly.m_EdgeOrigins[edgeIdx + 1]);
-                        return Poly.Closed ? Poly.EdgeWithOrigin(Poly.m_EdgeOrigins[0]) : null;
+                        if (edgeIdx != Poly.Edges.Count - 1)
+                            return Poly.Edges[edgeIdx + 1];
+                        return Poly.Closed ? Poly.Edges[0] : null;
                     }
                 }
                 
@@ -227,50 +213,32 @@ namespace ioPolygonGraph
 
                 public int EdgeIdx => Poly.m_OriginToEdgeIdx[OriginIdx];
 
-
+                protected HalfEdge m_Twin;
                 public HalfEdge Twin
                 {
-                    get
-                    {
-                        var nbrPolyID = Poly.m_EdgeToNbrID[EdgeIdx];
-                        if (nbrPolyID == Guid.Empty) return null;
-                        var nbrPoly = G.GetPoly(nbrPolyID);
-                        return nbrPoly.Edge(Poly.m_EdgeToTwinEdgeIdx[EdgeIdx]);
-                    }
+                    get { return m_Twin; }
 
                     set
                     {
-                        if (value == null)
-                        {
-                            if (Poly.m_EdgeToNbrID[EdgeIdx] != Guid.Empty)
-                            {
-                                var nbrPoly = G.GetPoly(Poly.m_EdgeToNbrID[EdgeIdx]);
-                                var twinIdx = Poly.m_EdgeToTwinEdgeIdx[EdgeIdx];
-                                nbrPoly.m_EdgeToTwinEdgeIdx[twinIdx] = HALFEDGE_NULL_IDX;
-                                nbrPoly.m_EdgeToNbrID[twinIdx] = Guid.Empty;
-                            }
-
-                            Poly.m_EdgeToTwinEdgeIdx[EdgeIdx] = HALFEDGE_NULL_IDX;
-                            Poly.m_EdgeToNbrID[EdgeIdx] = Guid.Empty;
-                            return;
-                        }
-
-                        Poly.m_EdgeToTwinEdgeIdx[EdgeIdx] = value.EdgeIdx;
-                        Poly.m_EdgeToNbrID[EdgeIdx] = value.PolyID;
-                        var nPoly = G.GetPoly(value.PolyID);
-                        nPoly.m_EdgeToTwinEdgeIdx[value.EdgeIdx] = EdgeIdx;
-                        nPoly.m_EdgeToNbrID[value.EdgeIdx] = PolyID;
+                        var curTwin = m_Twin;
+                        var newTwin = value;
+                        if (curTwin != null)
+                            curTwin.m_Twin = null;
+                        m_Twin = newTwin;
+                        if(newTwin != null)
+                            newTwin.m_Twin = this;
                     }
                 }
 
                 public PolygonGraph G { get; }
             }
         }
+        public interface IPolyGraphObj
+        {
+            PolygonGraph G { get; }
+        }
     }
 
 
-    public interface IPolyGraphObj
-    {
-        PolygonGraph G { get; }
-    }
+    
 }

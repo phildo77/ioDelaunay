@@ -36,13 +36,24 @@ namespace ioDelaunayTest
                 );
             }
 
-            var del = new Delaunay(points.ToArray());
-            var cs = new CircleSweep();
-            del.triangulator = cs;
-            del.Triangulate();
-            var vSet = new Delaunay.Voronoi.Settings();
-            vSet.CloseOuterSites = false;
-            var vor = new Delaunay.Voronoi(del,vSet);
+            Delaunay del = null;
+            Delaunay.Voronoi vor = null;
+            try
+            {
+                del = new Delaunay(points.ToArray());
+                var cs = new CircleSweep();
+                del.triangulator = cs;
+                del.Triangulate();
+                var vSet = new Delaunay.Voronoi.Settings();
+                vSet.CloseOuterSites = false;
+                vor = new Delaunay.Voronoi(del,vSet);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+            
 
             try
             {
@@ -81,6 +92,7 @@ namespace ioDelaunayTest
             Assert.True(true);
             
         }
+
     }
 
     public static class TestExt
