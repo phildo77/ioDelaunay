@@ -15,7 +15,7 @@ namespace ioDelaunay
             Left
         }
 
-        public interface ICircleSweepObj
+        private interface ICircleSweepObj
         {
             CircleSweep CS { get; }
         }
@@ -31,15 +31,7 @@ namespace ioDelaunay
         private PolartPt[] m_PolPos; //By Point Idx
         private int[] m_VertIdxsByR;
 
-        /// <summary>
-        ///     Angle to origin, x axis clockwise.
-        /// </summary>
-        public static float AngleFromOrigin(Vector2f _origin, Vector2f _pt)
-        {
-            var to = _pt - _origin;
-            var from = Vector2f.right - _origin;
-            return from.AngleCW(to);
-        }
+        
 
         /// <summary>
         ///     Performs a binary search on the specified collection.
@@ -50,7 +42,7 @@ namespace ioDelaunay
         /// <param name="value">The value to search for.</param>
         /// <param name="comparer">The comparer that is used to compare the value with the list items.</param>
         /// <returns></returns>
-        public static int BinarySearch<TItem, TSearch>(IList<TItem> list, TSearch value,
+        private static int BinarySearch<TItem, TSearch>(IList<TItem> list, TSearch value,
             Func<TSearch, TItem, int> comparer)
         {
             if (list == null) throw new ArgumentNullException("list");
@@ -81,7 +73,7 @@ namespace ioDelaunay
         /// <param name="list">The list to be searched.</param>
         /// <param name="value">The value to search for.</param>
         /// <returns></returns>
-        public static int BinarySearch<TItem>(IList<TItem> list, TItem value)
+        private static int BinarySearch<TItem>(IList<TItem> list, TItem value)
         {
             return BinarySearch(list, value, Comparer<TItem>.Default);
         }
@@ -94,7 +86,7 @@ namespace ioDelaunay
         /// <param name="value">The value to search for.</param>
         /// <param name="comparer">The comparer that is used to compare the value with the list items.</param>
         /// <returns></returns>
-        public static int BinarySearch<TItem>(IList<TItem> list, TItem value, IComparer<TItem> comparer)
+        private static int BinarySearch<TItem>(IList<TItem> list, TItem value, IComparer<TItem> comparer)
         {
             return BinarySearch(list, value, comparer.Compare);
         }
@@ -108,7 +100,7 @@ namespace ioDelaunay
         }
 
 
-        protected override void Algorithm()
+        protected override void Algorithm(ref float _progress)
         {
             Init();
             
@@ -139,15 +131,20 @@ namespace ioDelaunay
 
                 // 6) Check / Fill Basin Left
                 FillBasin(RL.Left, newFntPt.VertIdx);
+                _progress = rIdx / (float)m_VertIdxsByR.Length * 75;
             }
             
             // 7) Finalize
             FinalizeHull();
+            _progress = 95;
 
         }
 
-        protected override void Hull()
+        protected override void Hull(ref float _progress)
         {
+            var startPct = _progress;
+            var fpCnt = frontier.FPntCount;
+            var curCnt = 0;
             var fScan = frontier.Project(0)[0];
             Frontier.FrontierPt fStart = fScan;
             var hullIdxs = new List<int>() {fStart.VertIdx};
@@ -156,9 +153,12 @@ namespace ioDelaunay
             {
                 hullIdxs.Add(fScan.VertIdx);
                 fScan = fScan.Right;
+                _progress = startPct + (startPct - _progress) * curCnt++ / fpCnt;
             }
 
             D.HullIdxs = hullIdxs.ToArray();
+
+            _progress = 100;
 
         }
 
@@ -423,6 +423,8 @@ namespace ioDelaunay
                 m_FPList.Add(ftPts[2]);
             }
 
+            public int FPntCount => m_FPList.Count;
+
             public CircleSweep CS { get; }
 
             public FrontierPt Add(int _vIdx, Delaunay.Triangle _newTri, FrontierPt _fLt,
@@ -553,6 +555,8 @@ namespace ioDelaunay
                 private readonly Dictionary<int, FrontierPt> m_FptByVertIdx;
                 private readonly SortedList<float, SortedList<float, FrontierPt>> m_FPts;
 
+                public int Count => m_FPts.Count;
+
                 public void Add(FrontierPt _pt)
                 {
                     var polPos = CS.m_PolPos[_pt.VertIdx];
@@ -641,6 +645,16 @@ namespace ioDelaunay
 
                 r = (float) Math.Sqrt(nx * nx + ny * ny);
                 Theta = AngleFromOrigin(_origin, _cPt);
+            }
+            
+            /// <summary>
+            ///     Angle to origin, x axis clockwise.
+            /// </summary>
+            private static float AngleFromOrigin(Vector2f _origin, Vector2f _pt)
+            {
+                var to = _pt - _origin;
+                var from = Vector2f.right - _origin;
+                return from.AngleCW(to);
             }
         }
     }

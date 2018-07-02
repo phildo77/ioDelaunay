@@ -13,11 +13,17 @@ namespace ioDelaunay
 
         private Triangulator m_Triangulator;
 
-        public Delaunay(Vector2f[] _points)
+        public static Delaunay Create<T>(Vector2f[] _points) where T : Triangulator, new()
+        {
+            var del = new Delaunay(_points);
+            del.m_Triangulator = new T();
+            ((ITriangulator)del.m_Triangulator).SetTarget(del);
+            return del;
+        }
+        
+        private Delaunay(Vector2f[] _points)
             : base(_points)
         {
-            m_Triangulator = new CircleSweep();
-            m_Triangulator.SetD(this);//TODO this is wonky
         }
         
         public void Triangulate(IEnumerable<Vector2f> _points)
@@ -48,16 +54,7 @@ namespace ioDelaunay
             }
         }
 
-        public Triangulator triangulator
-        {
-            get { return m_Triangulator; }
-
-            set
-            {
-                m_Triangulator = value;
-                m_Triangulator.SetD(this);
-            }
-        }
+        public Triangulator triangulator => m_Triangulator;
 
         public Triangle AddTriToMesh(int _vertIdx, Poly.HalfEdge _joiningEdge)
         {
@@ -217,32 +214,44 @@ namespace ioDelaunay
             }
         }
 
-        public abstract class Triangulator
+        private interface ITriangulator
+        {
+            void SetTarget(Delaunay _d);
+        }
+        
+        public abstract class Triangulator : ITriangulator
         {
             protected Delaunay D;
             protected Dictionary<Guid, Poly> Polys => D.m_Polys;
             protected List<HashSet<Guid>> PolysContainingVert => D.m_PolysContainingVert;
 
-            public void SetD(Delaunay _d)
-            {
-                D = _d;
-            }
+            void ITriangulator.SetTarget(Delaunay _d) { D = _d; }
+
+            private float m_Progress;
+            public float Progress => m_Progress;
 
             public void Triangulate()
             {
-                Algorithm();
-                Hull();
+                m_Progress = 0;
+                Algorithm(ref m_Progress);
+                Hull(ref m_Progress);
+                m_Progress = 100f;
             }
 
             /// <summary>
-            /// This is where HullIdxs should be populated
+            /// This is where HullIdxs should be populateds
             /// </summary>
-            protected abstract void Hull();
+            protected abstract void Hull(ref float _progress);
             /// <summary>
             /// This is where the triangulation algorithm to populate polys.
             /// </summary>
-            protected abstract void Algorithm();
+            protected abstract void Algorithm(ref float _progress);
 
+            /// <summary>
+            /// Convenience triangle accessor
+            /// </summary>
+            /// <param name="_triID">ID of triangle</param>
+            /// <returns>Triangle with corresponding ID</returns>
             protected Triangle Tri(Guid _triID)
             {
                 return (Triangle) D.m_Polys[_triID];
