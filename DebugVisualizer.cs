@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using Vectorf;
@@ -15,12 +16,12 @@ namespace ioDelaunay
         private static Color m_ColorFont = Color.BurlyWood;
         private static readonly Color m_ColorCircles = Color.Aquamarine;
         private static readonly Color m_ColorVor = Color.DodgerBlue;
-        public static bool Enabled = false;
+        public static bool Enabled = true;
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (2000), (int) (2000));
+            var bitmap = new Bitmap((int) (10000), (int) (10000));
             var originOffset = _d.BoundsRect.min;
             originOffset.x -= 250;
             originOffset.y -= 250;
@@ -124,11 +125,9 @@ namespace ioDelaunay
                 foreach (var site in sites)
                     for (var idx = 0; idx < site.VertIdxs.Count; ++idx)
                     {
-                        if (idx == site.VertIdxs.Count - 1 && !site.Closed) break;
+                        if ((idx == (site.VertIdxs.Count - 1)) && !site.Closed) break;
                         try
                         {
-                            if (site.VertDelIdx == 400) //TODO DEBUG
-                                Console.WriteLine("Debug");
                             var edge = site.Edge(idx);
                             var x1 = edge.OriginPos.x - originOffset.x;
                             var y1 = edge.OriginPos.y - originOffset.y;
@@ -171,7 +170,7 @@ namespace ioDelaunay
                     g.InterpolationMode = InterpolationMode.Low;
                     g.PixelOffsetMode = PixelOffsetMode.None;
                     var pen = new Pen(Color.Orange);
-                    g.DrawRectangle(pen, dBnds.xMin, dBnds.yMin, dBnds.width, dBnds.height);
+                    //g.DrawRectangle(pen, dBnds.xMin, dBnds.yMin, dBnds.width, dBnds.height);
                 }                
             }
             

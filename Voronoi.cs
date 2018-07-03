@@ -14,10 +14,48 @@ namespace ioDelaunay
         {
             public class Settings
             {
+                /// <summary>
+                /// Close outer voronoi sites?
+                /// </summary>
                 public bool CloseOuterSites = true;
-                public float BoundaryExpansionPct = 1.2f;
+                
+                /// <summary>
+                /// Percent beyond Delaunay bounds at which trim will occur if trim is enabled.
+                /// Must be greater than 1.0
+                /// </summary>
+                public float BoundaryExpansionPct
+                {
+                    get { return m_BoundaryExpansionPct; }
+                    set
+                    {
+                        var pct = value;
+                        m_BoundaryExpansionPct = pct < 1.0 ? 1.0f : pct;
+                    }
+                }
+
+                private float m_BoundaryExpansionPct = 1.2f;
+                
+                /// <summary>
+                /// Trim sites at some pct away from delaunay boundary extents.
+                /// Note that there is an increased chance of voronoi site edge intersection at
+                /// distance based on Delaunay hull angle limit.
+                /// </summary>
                 public bool TrimSitesAtBoundary = true;
-                public bool AddBoundryCorners = true;
+                private bool m_AddBoundaryCorners = true;
+
+                /// <summary>
+                /// Add corners to voronoi sites at boundary corners?
+                /// Ignored if Trim is false or if CloseOuterSites is false.
+                /// </summary>
+                public bool AddBoundryCorners
+                {
+                    get
+                    {
+                        return TrimSitesAtBoundary && CloseOuterSites && m_AddBoundaryCorners;
+                    }
+
+                    set { m_AddBoundaryCorners = value; }
+                }
             }
 
             public Settings settings;
@@ -194,28 +232,15 @@ namespace ioDelaunay
                     }
                 }
                 
-                {
-                    //TODO DEBUG
-                    DebugVisualizer.Visualize(D, this, "DelVorNoTrimPreConnect");
-                }
-                
+                /*                
                 {
                     //TODO DEBUG
                     DebugVisualizer.Visualize(D, this, "DelVorNoTrim");
                 }
+                */
 
                 if(settings.TrimSitesAtBoundary)
                     TrimSitesToBndry(sIDsOutBnds, _bounds);
-                //Add corners
-                /*
-                foreach (var corSiteIdx in cornerSiteIdxs)
-                {
-                    var site = (Site) Polys[m_SiteIDByDVertIdx[corSiteIdx.Key]];
-                    AddVertex(corSiteIdx.Value);
-                    site.InsertEdge(0, Vertices.Count - 1);
-                    ConnectSites(corSiteIdx.Key);
-                }
-                */
             }
 
             
@@ -239,7 +264,6 @@ namespace ioDelaunay
                 
                 while(true)
                 {
-                    var closedA = curSite.Closed; //TODO Debug
                     curSite.Closed = true;
 
                     //Get in bndy Transition for SiteA and capture verts to keep and twins
@@ -279,8 +303,6 @@ namespace ioDelaunay
                         //Get site A in bndy intersection
                         var intPtIn = GetIntersectionToBndy(edgeIn.OriginPos, edgeIn.AsVector, _bnd, out firstBndy);
                         curBndy = firstBndy;
-                        if(intPtIn != Vector2f.positiveInfinity)
-                            Console.WriteLine("Debug"); //TODO
                         AddVertex(intPtIn);
                         prevOutVertIdx = firstInVertIdx = Points.Count - 1;
                         lastSiteID = edgeIn.Twin.PolyID;
@@ -319,17 +341,15 @@ namespace ioDelaunay
                         
                     }
 
-                    curSite.Reform(newVertsCW.ToArray()); 
+                    curSite.Reform(newVertsCW.ToArray());
+                    curSite.Closed = settings.CloseOuterSites;
                     
-                    //TODO DEBUG
                     if (curSite.ID != lastSiteID)
                     {
                         prevSite = curSite;
                         curSite = nextSite;
                         continue;
                     }
-                    //curSite.EdgeWithOrigin(firstInVertIdx).Twin =
-                    //    Polys[_siteIDs[0]].EdgeWithOrigin(firstInEdgeOriginIdx);
                     
                     break;
 
@@ -431,8 +451,6 @@ namespace ioDelaunay
                     V = _v;
                     VertDelIdx = _vertDelIdx;
                     V.m_SiteIDByDVertIdx.Add(_vertDelIdx, ID);
-                    if (V.m_SiteIDByDVertIdx.ContainsKey(765))
-                        Console.WriteLine("Debug"); //TODO Debug
                 }
 
                 public Voronoi V { get; }
