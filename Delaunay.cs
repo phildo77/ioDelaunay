@@ -26,7 +26,7 @@ namespace ioDelaunay
         {
         }
         
-        public void Triangulate(IEnumerable<Vector2f> _points)
+        public void ReTriangulate(IEnumerable<Vector2f> _points)
         {
             Points.Clear();
             m_Polys.Clear();

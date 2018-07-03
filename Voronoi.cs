@@ -415,12 +415,12 @@ namespace ioDelaunay
                     foreach (var polykvp in m_Polys)
                     {
                         var site = (Site) polykvp.Value;
-                        var centroid = Geom.CentroidOfPoly(site.VertIdxs.Select(_vIdx => Points[_vIdx]).ToArray()); //Todo make IENUM
+                        var centroid = Geom.CentroidOfPoly(site.VertIdxs.Select(_vIdx => Points[_vIdx]));
                         centroids.Add(centroid);
     
                     }
-                    //TODO DEBUG
-                    D.Triangulate(centroids);
+                    
+                    D.ReTriangulate(centroids);
                     Init();
                     BuildSites(DBounds);
                 }

@@ -6,45 +6,35 @@ Work in progress / In development / Alpha
 Usage Example:
 
 ```
-		var siteCnt = 10000;
-		var width = 5000;
-		var height = 5000;
-		var points = new List<Vector2f>();
-		
-		var seed = DateTime.Now.Millisecond;
-		var rand = new Random(seed);
+	    var siteCnt = 10000;
+            var width = 3000;
+            var height = 3000;
+            var points = new List<Vector2f>();
 
-		//Ceate random points to triangulate
-		for (int i = 0; i < siteCnt; i++)
-		{
-			points.Add(new Vector2f(
-				(float)rand.NextDouble() * width,
-				(float)rand.NextDouble() * height)
-			);
-		}
-		
-		//Create Delaunay object
-		Delaunay del = new Delaunay(points.ToArray());
+            var seed = DateTime.Now.Millisecond;
+            var rand = new Random(seed);
 
-		//Set triagulator as Circle Sweep and triangulate
-		var cs = new CircleSweep();
-		del.triangulator = cs;
-		del.Triangulate();
+            //Ceate random points in map area
+            for (int i = 0; i < siteCnt; i++)
+            {
+                points.Add(new Vector2f(
+                    (float)rand.NextDouble() * width,
+                    (float)rand.NextDouble() * height)
+                );
+            }
 
-		//Create Voronoi Object
-		var vSet = new Delaunay.Voronoi.Settings();
-		vSet.CloseOuterSites = false;
-		Delaunay.Voronoi vor = new Delaunay.Voronoi(del,vSet);;
-		
-		vor.BuildSites();
-		
-		//Perform Lloyd Relaxation algorithm
-		vor.LloydRelax(2);
+            Delaunay del = Delaunay.Create<CircleSweep>(points.ToArray());
+            del.Triangulate();
+            var vSet = new Delaunay.Voronoi.Settings
+            {
+                CloseOuterSites = true,
+            	TrimSitesAtBoundary = true
+            };
+            Delaunay.Voronoi vor = new Delaunay.Voronoi(del,vSet);
+            vor.BuildSites(); 
 
-		Mesh mesh = vor.D.Mesh;
+	    vor.LloydRelax(2);
+            var mesh = del.Mesh;
 
-		var verts = mesh.Vertices;
-		var tris = mesh.Triangles;
-
-		//Do something with mesh, etc. etc.
+	    //Do something with mesh, etc. etc.
 ```

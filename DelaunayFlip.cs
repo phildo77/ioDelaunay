@@ -65,8 +65,10 @@ namespace ioDelaunay
 
             private void RefreshEdge(Triangle.TriEdgeData _edge)
             {
+                /* DEBUG
                 if(m_Edges.Count != 0)
-                    Console.WriteLine("Debug"); //TODO Debug
+                    Console.WriteLine("Debug");
+                */
                 if (!m_Edges.ContainsKey(_edge)) return;
                 m_Edges[_edge] = _edge;
             }

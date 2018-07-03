@@ -475,18 +475,21 @@ namespace ioDelaunay
 
                 var commonTris = CS.PolysContainingVert[fpLeft.VertIdx]
                     .Intersect(CS.PolysContainingVert[fpRight.VertIdx]).ToArray();
+                
+                // DEBUG
+                /*
                 if (commonTris.Length != 1)
                 {
                     var tris = commonTris.Select(_id => CS.Tri(_id)).ToArray();
 
-                    throw new Exception("WTF?" + tris); //TODO DEBUG
+                    throw new Exception("WTF?" + tris);
                 }
-
+                */
                 fpLeft.EdgeRight = CS.Tri(commonTris[0]).EdgeWithOrigin(fpLeft.VertIdx);
                 _fPt.Dispose();
             }
 
-            /*
+            /* DEBUG
             public Guid DebugGetTriangleAtFrontierRt(FrontierPt _fPt)
             {
                 var trisLt = CS.PolysContainingVert[_fPt.VertIdx].Select(_id => CS.Tri(_id)).ToArray();
@@ -497,7 +500,7 @@ namespace ioDelaunay
                 {
                     var tris = commonTris.Select(_id => CS.Tri(_id)).ToArray();
 
-                    throw new Exception("WTF?" + tris.ToString()); //TODO DEBUG
+                    throw new Exception("WTF?" + tris.ToString());
                 }
 
                 return commonTris[0];

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Vectorf;
 
@@ -46,12 +47,25 @@ namespace ioDelaunay
             return distSqr > centerARad * centerARad;
         }
 
-        public static Vector2f CentroidOfPoly(params Vector2f[] _pts)
+        public static Vector2f CentroidOfPoly(IEnumerable<Vector2f> _pts)
         {
+            var count = 0;
+            float xSum = 0;
+            float ySum = 0;
+            foreach (var pt in _pts)
+            {
+                count++;
+                xSum = xSum + pt.x;
+                ySum = ySum + pt.y;
+            }
+
+            return new Vector2f(xSum / count, ySum / count);
+            /*
             var count = _pts.Count();
             var x = _pts.Sum(_pt => _pt.x) / count;
             var y = _pts.Sum(_pt => _pt.y) / count;
             return new Vector2f(x, y);
+            */
         }
     }
 }

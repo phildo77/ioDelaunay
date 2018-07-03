@@ -16,12 +16,12 @@ namespace ioDelaunay
         private static Color m_ColorFont = Color.BurlyWood;
         private static readonly Color m_ColorCircles = Color.Aquamarine;
         private static readonly Color m_ColorVor = Color.DodgerBlue;
-        public static bool Enabled = true;
+        public static bool Enabled = false;
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (10000), (int) (10000));
+            var bitmap = new Bitmap((int) (5000), (int) (5000));
             var originOffset = _d.BoundsRect.min;
             originOffset.x -= 250;
             originOffset.y -= 250;

@@ -127,9 +127,11 @@ namespace ioPolygonGraph
                 var nbrPolys = G.m_PolysContainingVert[vA0Idx].Intersect(G.m_PolysContainingVert[vA1Idx])
                     .Except(new HashSet<Guid> {ID}).ToList();
                     
-                //TODO DEBUG
+                //DEBUG
+                /*
                 if(nbrPolys.Count > 1)
                     Console.WriteLine("Debug");
+                */
 
                 if (nbrPolys.Count == 1)
                 {
