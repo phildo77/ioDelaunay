@@ -346,20 +346,26 @@ namespace ioDelaunay
             var v1 = D.Points[triVertIdxs[1]];
             var v2 = D.Points[triVertIdxs[2]];
 
-            //Force Clockwise
+            //Force Clockwise and avoid line
+            var lastIdx = 2;
             var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
+            //Check for line
+            while (angleCCW <= float.Epsilon && angleCCW >= float.Epsilon)
+            {
+                v2 = D.Points[m_VertIdxsByR[++lastIdx]];
+                angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
+            }
+
+            triVertIdxs[2] = m_VertIdxsByR[lastIdx];
+            
+            //Force CW
             if (angleCCW > 0)
             {
                 var tempIdx = triVertIdxs[1];
                 triVertIdxs[1] = triVertIdxs[2];
                 triVertIdxs[2] = tempIdx;
             }
-            else if (angleCCW == 0)
-                throw new Exception("new Triangle - Striaght line"); //TODO Handle this?
-
-            
-            
-            var firstTri = new Delaunay.Triangle(triVertIdxs, D);
+            var firstTri = new Delaunay.Triangle(triVertIdxs[0], triVertIdxs[1], triVertIdxs[2], D);
 
             frontier = new Frontier(firstTri, this);
         }

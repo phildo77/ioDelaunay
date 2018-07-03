@@ -65,13 +65,13 @@ namespace ioDelaunay
                 _joiningEdge.OriginIdx
             };
 
-            if (!IsValidTri(newVerts[0], newVerts[1], newVerts[2]))
+            if (!IsValidTri(newVerts[0], newVerts[1], newVerts[2])) // DEBUG - Remove for optimization
             {
                 Trace.WriteLine("Invalid Tri for verts: " + newVerts[0] + " " + newVerts[1] + " " + newVerts[2]);
                 return null;
             }
 
-            var newTri = new Triangle(newVerts, this);
+            var newTri = new Triangle(newVerts[0], newVerts[1], newVerts[2], this);
             var newEdge = newTri.EdgeWithOrigin(newVerts[1]); //TODO Check both edge verts?
             newEdge.Twin = _joiningEdge;
             return newTri;
@@ -96,7 +96,7 @@ namespace ioDelaunay
                 return null;
             }
 
-            var newTri = new Triangle(newVerts, this);
+            var newTri = new Triangle(newVerts[0], newVerts[1], newVerts[2], this);
             var newEdgeLt = newTri.EdgeWithOrigin(newVerts[2]);
             newEdgeLt.Twin = _twinLt;
             var newEdgeRt = newTri.EdgeWithOrigin(newVerts[1]);
@@ -135,22 +135,22 @@ namespace ioDelaunay
 
         public class Triangle : Poly, IDelaunayObj
         {
-
-            public TriEdgeData[] EdgeData;
+            /// <summary>
+            /// Additional per edge data to optimize edge flipping / legalization.
+            /// </summary>
+            public readonly TriEdgeData[] EdgeData;
 
             public TriEdgeData EdgeDataWithOrigin(int _idx)
             {
                 return EdgeData[m_OriginToEdgeIdx[_idx]];
             }
             
-            public Triangle(int[] _vertIdxs, Delaunay _d)
-                : base(_vertIdxs, true, _d)
+            public Triangle(int _vertIdx0, int _vertIdx1, int _vertIdx2, Delaunay _d)
+                : base(new [] {_vertIdx0, _vertIdx1, _vertIdx2}, true, _d)
             {
-                if (_vertIdxs.Length != 3)
-                    throw new Exception("Vert count must be exactly 3");
-                //Check for dupe verts
-                if (_vertIdxs[0] == _vertIdxs[1] || _vertIdxs[0] == _vertIdxs[2] || _vertIdxs[1] == _vertIdxs[2])
-                    throw new Exception("new Triangle - Dupe Verts"); //TODO Handle this
+                //Check for dupe verts - DEBUG - Remove for optimization
+                //if (_vertIdx0 == _vertIdx1 || _vertIdx0 == _vertIdx2 || _vertIdx1 == _vertIdx2)
+                //    throw new Exception("new Triangle - Dupe Verts");
 
                 D = _d;
 
@@ -163,6 +163,11 @@ namespace ioDelaunay
 
             public Delaunay D { get; }
 
+            /// <summary>
+            /// Calculate center and radius of circumcircle of this triangle.
+            /// </summary>
+            /// <param name="_center">Populated with center coord of circumcircle</param>
+            /// <param name="_r">Populated with radius of circumcircle</param>
             public void CircumCircle(out Vector2f _center, out float _r)
             {
                 Geom.Circumcircle(Edges[0].OriginPos, Edges[1].OriginPos, Edges[2].OriginPos, out _center, out _r);
@@ -186,8 +191,11 @@ namespace ioDelaunay
                     D = (Delaunay) _edge.G;
                 }
             
-                public Delaunay D { get; }
+                private Delaunay D { get; }
             
+                /// <summary>
+                /// Checks whether this Triangle is a valid Delaunay Triangulation against it's neighbors.
+                /// </summary>
                 public bool IsDelaunay
                 {
                     get
@@ -199,14 +207,14 @@ namespace ioDelaunay
                         Vector2f ccCent;
                         float ccRad;
                         if (!Geom.Circumcircle(a2, ab0, ab1, out ccCent, out ccRad))
-                            throw new Exception("TODO - THIS IS PROBABLY A LINE"); //TODO check for line?
+                            return false;  //Line condition
 
                         var distToCentSqr = (b2 - ccCent).sqrMagnitude;
                         if (!(distToCentSqr >= ccRad * ccRad)) 
                             return false;
-            
+
                         if (!Geom.Circumcircle(b2, ab1, ab0, out ccCent, out ccRad))
-                            throw new Exception("TODO - THIS IS PROBABLY A LINE"); //TODO check for line?
+                            return false;  //Line condition
 
                         return (a2 - ccCent).sqrMagnitude >= ccRad * ccRad;
                     }

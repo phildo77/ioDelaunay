@@ -92,13 +92,11 @@ namespace ioDelaunay
                     b2Idx, a2Idx, ab0Idx
                 };
                     
-                    
-                
                 D.RemovePoly(triAID);
                 D.RemovePoly(triBID);
 
-                triA = new Triangle(newVertsA, D);
-                triB = new Triangle(newVertsB, D);
+                triA = new Triangle(newVertsA[0], newVertsA[1], newVertsA[2], D);
+                triB = new Triangle(newVertsB[0], newVertsB[1], newVertsB[2], D);
 
                 var outerEdges = new List<Triangle.TriEdgeData>
                 {
