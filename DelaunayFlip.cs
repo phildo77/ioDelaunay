@@ -93,7 +93,7 @@ namespace ioDelaunay
                 {
                     b2Idx, a2Idx, ab0Idx
                 };
-                    
+                
                 D.RemovePoly(triAID);
                 D.RemovePoly(triBID);
 

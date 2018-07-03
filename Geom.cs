@@ -7,46 +7,35 @@ namespace ioDelaunay
 {
     public static class Geom
     {
-        public static bool Circumcircle(Vector2f p0, Vector2f p1, Vector2f p2, out Vector2f center, out float radius)
+        public static bool Circumcircle(Vector2f p0, Vector2f p1, Vector2f p2, out Vector2f center, out float radiusSqr)
         {
-            float dA, dB, dC, aux1, aux2, div;
-
-            dA = p0.x * p0.x + p0.y * p0.y;
-            dB = p1.x * p1.x + p1.y * p1.y;
-            dC = p2.x * p2.x + p2.y * p2.y;
-
-            aux1 = dA * (p2.y - p1.y) + dB * (p0.y - p2.y) + dC * (p1.y - p0.y);
-            aux2 = -(dA * (p2.x - p1.x) + dB * (p0.x - p2.x) + dC * (p1.x - p0.x));
-            div = 2 * (p0.x * (p2.y - p1.y) + p1.x * (p0.y - p2.y) + p2.x * (p1.y - p0.y));
-
-            if (div == 0)
+            double dp0x = p0.x;
+            double dp0y = p0.y;
+            double dp1x = p1.x;
+            double dp1y = p1.y;
+            double dp2x = p2.x;
+            double dp2y = p2.y;
+            double det = (dp0x - dp2x) * (dp1y - dp2y) - (dp1x - dp2x) * (dp0y - dp2y);
+            if (det == 0) //TODO use epsilon / approx
             {
                 center = new Vector2f(float.NaN, float.NaN);
-                radius = float.NaN;
+                radiusSqr = float.NaN;
                 return false;
             }
+            
+            double cent_x = (((dp0x - dp2x) * (dp0x + dp2x) + (dp0y - dp2y) * (dp0y + dp2y)) / 2 * (dp1y - dp2y)
+                         - ((dp1x - dp2x) * (dp1x + dp2x) + (dp1y - dp2y) * (dp1y + dp2y)) / 2 * (dp0y - dp2y))
+                        / det;
 
-            center.x = aux1 / div;
-            center.y = aux2 / div;
-
-            radius = (float) Math.Sqrt((center.x - p0.x) * (center.x - p0.x) + (center.y - p0.y) * (center.y - p0.y));
-
+            double cent_y = (((dp1x - dp2x) * (dp1x + dp2x) + (dp1y - dp2y) * (dp1y + dp2y)) / 2 * (dp0x - dp2x)
+                         - ((dp0x - dp2x) * (dp0x + dp2x) + (dp0y - dp2y) * (dp0y + dp2y)) / 2 * (dp1x - dp2x))
+                        / det;
+            
+            center = new Vector2f((float)cent_x, (float)cent_y);
+            radiusSqr = (float)((dp2x - cent_x) * (dp2x - cent_x) + (dp2y - cent_y) * (dp2y - cent_y));
             return true;
         }
-
-        public static bool IsValidDelTri(Vector2f _tA0, Vector2f _tAB1, Vector2f _tAB2,
-            Vector2f _tB0)
-        {
-            Vector2f centerA;
-            float centerARad;
-            Circumcircle(_tA0, _tAB1, _tAB2, out centerA, out centerARad);
-            if (float.IsNaN(centerARad))
-                return false;
-
-            var distSqr = (centerA - _tB0).sqrMagnitude;
-            return distSqr > centerARad * centerARad;
-        }
-
+        
         public static Vector2f CentroidOfPoly(IEnumerable<Vector2f> _pts)
         {
             var count = 0;

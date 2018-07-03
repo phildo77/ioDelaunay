@@ -267,7 +267,9 @@ namespace ioDelaunay
                 //Check that tri is valid (due to radius from Origin)
                 var vecLt = fOut.Left.Pos - fOut.Pos;
                 var vecRt = fOut.Right.Pos - fOut.Pos;
-                if (vecLt.AngleCW(vecRt) >= Math.PI - float.Epsilon) break;
+                //Check for lines
+                var triAngle = vecLt.AngleCW(vecRt);
+                if (triAngle >= Math.PI - float.Epsilon) break;
 
                 var twinLt = fOut[RL.Left].EdgeRight;
                 var twinRt = fOut.EdgeRight;

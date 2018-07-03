@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using ioDelaunay;
 using Vectorf;
@@ -112,6 +113,7 @@ namespace ioPolygonGraph
                 return Edges[_edgeIdx];
             }
 
+            //TODO Optimize
             private void FindAndSetTwin(int _edgeIdx)
             {
                 var vA1Idx = -1;
@@ -125,7 +127,7 @@ namespace ioPolygonGraph
                 //Twins
                 var vA0Idx = Edges[_edgeIdx].OriginIdx;
                 var nbrPolys = G.m_PolysContainingVert[vA0Idx].Intersect(G.m_PolysContainingVert[vA1Idx])
-                    .Except(new HashSet<Guid> {ID}).ToList();
+                    .Except(new HashSet<Guid> {ID});
                     
                 //DEBUG
                 /*
@@ -133,9 +135,9 @@ namespace ioPolygonGraph
                     Console.WriteLine("Debug");
                 */
 
-                if (nbrPolys.Count == 1)
+               if (nbrPolys.Count() == 1)
                 {
-                    var nbrPoly = G.m_Polys[nbrPolys[0]];
+                    var nbrPoly = G.m_Polys[nbrPolys.First()];
                     var twin = nbrPoly.EdgeWithOrigin(vA1Idx);
                     if (twin.NextEdge.OriginIdx != vA0Idx)
                         twin = nbrPoly.EdgeWithOrigin(vA0Idx);

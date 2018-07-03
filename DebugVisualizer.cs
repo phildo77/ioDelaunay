@@ -23,8 +23,8 @@ namespace ioDelaunay
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
             var bitmap = new Bitmap((int) (5000), (int) (5000));
             var originOffset = _d.BoundsRect.min;
-            originOffset.x -= 250;
-            originOffset.y -= 250;
+            originOffset.x += 500;
+            originOffset.y += 500;
             var vectTextDrawn = new HashSet<int>();
 
 

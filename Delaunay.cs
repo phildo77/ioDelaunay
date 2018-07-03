@@ -149,8 +149,8 @@ namespace ioDelaunay
                 : base(new [] {_vertIdx0, _vertIdx1, _vertIdx2}, true, _d)
             {
                 //Check for dupe verts - DEBUG - Remove for optimization
-                //if (_vertIdx0 == _vertIdx1 || _vertIdx0 == _vertIdx2 || _vertIdx1 == _vertIdx2)
-                //    throw new Exception("new Triangle - Dupe Verts");
+                if (_vertIdx0 == _vertIdx1 || _vertIdx0 == _vertIdx2 || _vertIdx1 == _vertIdx2)
+                    throw new Exception("new Triangle - Dupe Verts");
 
                 D = _d;
 
@@ -167,10 +167,10 @@ namespace ioDelaunay
             /// Calculate center and radius of circumcircle of this triangle.
             /// </summary>
             /// <param name="_center">Populated with center coord of circumcircle</param>
-            /// <param name="_r">Populated with radius of circumcircle</param>
-            public void CircumCircle(out Vector2f _center, out float _r)
+            /// <param name="_r">Populated with radius squared of circumcircle</param>
+            public void CircumCircle(out Vector2f _center, out float _rSqr)
             {
-                Geom.Circumcircle(Edges[0].OriginPos, Edges[1].OriginPos, Edges[2].OriginPos, out _center, out _r);
+                Geom.Circumcircle(Edges[0].OriginPos, Edges[1].OriginPos, Edges[2].OriginPos, out _center, out _rSqr);
             }
             
             public class TriEdgeData
@@ -205,18 +205,18 @@ namespace ioDelaunay
                         var ab0 = D.Points[vAB0Idx];
                         var ab1 = D.Points[vAB1Idx];
                         Vector2f ccCent;
-                        float ccRad;
-                        if (!Geom.Circumcircle(a2, ab0, ab1, out ccCent, out ccRad))
+                        float ccRadSqr;
+                        if (!Geom.Circumcircle(a2, ab0, ab1, out ccCent, out ccRadSqr))
                             return false;  //Line condition
 
                         var distToCentSqr = (b2 - ccCent).sqrMagnitude;
-                        if (!(distToCentSqr >= ccRad * ccRad)) 
+                        if (!(distToCentSqr >= ccRadSqr)) 
                             return false;
 
-                        if (!Geom.Circumcircle(b2, ab1, ab0, out ccCent, out ccRad))
+                        if (!Geom.Circumcircle(b2, ab1, ab0, out ccCent, out ccRadSqr))
                             return false;  //Line condition
 
-                        return (a2 - ccCent).sqrMagnitude >= ccRad * ccRad;
+                        return (a2 - ccCent).sqrMagnitude >= ccRadSqr;
                     }
                 }
             }
