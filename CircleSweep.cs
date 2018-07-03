@@ -350,7 +350,7 @@ namespace ioDelaunay
             var lastIdx = 2;
             var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
             //Check for line
-            while (angleCCW <= float.Epsilon && angleCCW >= float.Epsilon)
+            while (angleCCW <= float.Epsilon && angleCCW >= -float.Epsilon)
             {
                 v2 = D.Points[m_VertIdxsByR[++lastIdx]];
                 angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
