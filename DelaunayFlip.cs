@@ -75,6 +75,7 @@ namespace ioDelaunay
             
             public bool IsEmpty => m_KeyStack.Count == 0;
 
+            /*
             public List<Triangle.TriEdgeData> Flip(Triangle.TriEdgeData _edgeData)
             {
                 var triA = (Triangle)_edgeData.Edge.Poly;
@@ -96,7 +97,7 @@ namespace ioDelaunay
                 
                 D.RemovePoly(triAID);
                 D.RemovePoly(triBID);
-
+                
                 triA = new Triangle(newVertsA[0], newVertsA[1], newVertsA[2], D);
                 triB = new Triangle(newVertsB[0], newVertsB[1], newVertsB[2], D);
 
@@ -113,7 +114,28 @@ namespace ioDelaunay
                 
                 return outerEdges;
             }
+            */
+            
+            public List<Triangle.TriEdgeData> FlipEdge(Triangle.TriEdgeData _edgeData)
+            {
+                var triA = (Triangle) _edgeData.Edge.Poly;
+                var triB = (Triangle) _edgeData.Edge.Twin.Poly;
 
+                triA.FlipEdge(_edgeData.vAB0Idx);
+                
+                var outerEdges = new List<Triangle.TriEdgeData>
+                {
+                    triB.EdgeDataWithOrigin(_edgeData.vAB1Idx),
+                    triA.EdgeDataWithOrigin(_edgeData.vA2Idx),
+                    triA.EdgeDataWithOrigin(_edgeData.vAB0Idx),
+                    triB.EdgeDataWithOrigin(_edgeData.vB2Idx)
+                };
+                foreach (var edge in outerEdges)
+                    RefreshEdge(edge);
+                
+                return outerEdges;
+            }
+            
             public Delaunay D { get; }
         }
             
@@ -130,7 +152,7 @@ namespace ioDelaunay
             {
                 var edgeStackObj = eStack.Pop();
                 if (edgeStackObj.IsDelaunay) continue;
-                var outerEdges = eStack.Flip(edgeStackObj);
+                var outerEdges = eStack.FlipEdge(edgeStackObj);
                 foreach (var oEdge in outerEdges)
                 {
                     affectedVerts.Add(oEdge.Edge.OriginIdx);

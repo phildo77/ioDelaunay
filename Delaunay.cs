@@ -56,6 +56,7 @@ namespace ioDelaunay
 
         public Triangulator triangulator => m_Triangulator;
 
+        /*
         public Triangle AddTriToMesh(int _vertIdx, Poly.HalfEdge _joiningEdge)
         {
             var newVerts = new[]
@@ -76,7 +77,14 @@ namespace ioDelaunay
             newEdge.Twin = _joiningEdge;
             return newTri;
         }
+        */
+        
+        public Triangle AddTriToMesh(int _vertIdx, Poly.HalfEdge _joiningEdge)
+        {
+            return new Triangle(_joiningEdge, _vertIdx, this);
+        }
 
+        /*
         public Triangle AddTriToMesh(Poly.HalfEdge _twinLt, Poly.HalfEdge _twinRt)
         {
             //Verify validity
@@ -96,12 +104,24 @@ namespace ioDelaunay
                 return null;
             }
 
+            
             var newTri = new Triangle(newVerts[0], newVerts[1], newVerts[2], this);
             var newEdgeLt = newTri.EdgeWithOrigin(newVerts[2]);
             newEdgeLt.Twin = _twinLt;
             var newEdgeRt = newTri.EdgeWithOrigin(newVerts[1]);
             newEdgeRt.Twin = _twinRt;
             return newTri;
+        }
+        */
+        
+        public Triangle AddTriToMesh(Poly.HalfEdge _twinLt, Poly.HalfEdge _twinRt)
+        {
+            //Verify validity - TODO remove optimization
+            /*
+            if (_twinLt.NextEdge.OriginIdx != _twinRt.OriginIdx)
+                throw new Exception("AddTriToMesh - twins arent touching");
+            */
+            return new Triangle(_twinLt, _twinRt, this);
         }
 
         public void Triangulate()
@@ -144,11 +164,52 @@ namespace ioDelaunay
             {
                 return EdgeData[m_OriginToEdgeIdx[_idx]];
             }
+
+            public Triangle(HalfEdge _twinLt, HalfEdge _twinRt, Delaunay _d) : base(true, _d)
+            {
+                D = _d;
+                var v0 = _twinLt.OriginIdx;
+                var v1 = _twinRt.NextEdge.OriginIdx;
+                var v2 = _twinRt.OriginIdx;
+
+                EdgeData = new TriEdgeData[3];
+                var edge0 = AddEdge(v0, null);
+                var edge1 = AddEdge(v1, _twinRt);
+                var edge2 = AddEdge(v2, _twinLt);
+                EdgeData[0] = new TriEdgeData(edge0);
+                EdgeData[1] = new TriEdgeData(edge1);
+                EdgeData[2] = new TriEdgeData(edge2);
+                
+                //Check for dupe verts - DEBUG TODO - Remove for optimization
+                if (v0 == v1 || v0 == v2 || v1 == v2)
+                    throw new Exception("new Triangle - Dupe Verts");
+
+            }
+
+            public Triangle(HalfEdge _twin, int _newVert, Delaunay _d) : base(true, _d)
+            {
+                D = _d;
+                var v0 = _twin.OriginIdx;
+                var v1 = _newVert;
+                var v2 = _twin.NextEdge.OriginIdx;
+                
+                EdgeData = new TriEdgeData[3];
+                var edge0 = AddEdge(v0, null);
+                var edge1 = AddEdge(v1, null);
+                var edge2 = AddEdge(v2, _twin);
+                EdgeData[0] = new TriEdgeData(edge0);
+                EdgeData[1] = new TriEdgeData(edge1);
+                EdgeData[2] = new TriEdgeData(edge2);
+                
+                //Check for dupe verts - DEBUG TODO - Remove for optimization
+                if (v0 == v1 || v0 == v2 || v1 == v2)
+                    throw new Exception("new Triangle - Dupe Verts");
+            }
             
             public Triangle(int _vertIdx0, int _vertIdx1, int _vertIdx2, Delaunay _d)
                 : base(new [] {_vertIdx0, _vertIdx1, _vertIdx2}, true, _d)
             {
-                //Check for dupe verts - DEBUG - Remove for optimization
+                //Check for dupe verts - DEBUG TODO - Remove for optimization
                 if (_vertIdx0 == _vertIdx1 || _vertIdx0 == _vertIdx2 || _vertIdx1 == _vertIdx2)
                     throw new Exception("new Triangle - Dupe Verts");
 
@@ -171,6 +232,68 @@ namespace ioDelaunay
             public void CircumCircle(out Vector2f _center, out float _rSqr)
             {
                 Geom.Circumcircle(Edges[0].OriginPos, Edges[1].OriginPos, Edges[2].OriginPos, out _center, out _rSqr);
+            }
+
+            public void FlipEdge(int _edgeOriginIdx)
+            {
+                var oldEdgeA = EdgeWithOrigin(_edgeOriginIdx);
+                var edgeData = EdgeDataWithOrigin(_edgeOriginIdx);
+                var triA = (Triangle) oldEdgeA.Poly;
+                var triB = (Triangle) oldEdgeA.Twin.Poly;
+                var ab0Idx = edgeData.vAB0Idx;
+                var ab1Idx = edgeData.vAB1Idx;
+                var a2Idx = edgeData.vA2Idx;
+                var b2Idx = edgeData.vB2Idx;
+
+
+                var newEdgesA = new List<HalfEdge>
+                {
+                    new HalfEdge(triA, b2Idx, D),
+                    triA.EdgeWithOrigin(a2Idx),
+                    triB.EdgeWithOrigin(ab0Idx)
+
+                };
+
+                var newEdgesB = new List<HalfEdge>
+                {
+                    new HalfEdge(triB, a2Idx, D),
+                    triB.EdgeWithOrigin(b2Idx),
+                    triA.EdgeWithOrigin(ab1Idx)
+                };
+
+                newEdgesA[2].PolyID = triA.ID;
+                newEdgesB[2].PolyID = triB.ID;
+
+                D.m_PolysContainingVert[ab1Idx].Remove(triA.ID);
+                D.m_PolysContainingVert[ab0Idx].Remove(triB.ID);
+
+                D.m_PolysContainingVert[b2Idx].Add(triA.ID);
+                D.m_PolysContainingVert[a2Idx].Add(triB.ID);
+                
+                triA.Edges = newEdgesA;
+                triB.Edges = newEdgesB;
+                
+                triA.m_OriginToEdgeIdx = new Dictionary<int, int>
+                {
+                    {b2Idx, 0},
+                    {a2Idx, 1},
+                    {ab0Idx, 2}
+                };
+                
+                triB.m_OriginToEdgeIdx = new Dictionary<int, int>
+                {
+                    {a2Idx, 0},
+                    {b2Idx, 1},
+                    {ab1Idx, 2}
+                };
+                
+                newEdgesA[0].Twin = newEdgesB[0];
+
+                for (int eIdx = 0; eIdx < 3; ++eIdx)
+                {
+                    triA.EdgeData[eIdx] = new TriEdgeData(triA.Edges[eIdx]);
+                    triB.EdgeData[eIdx] = new TriEdgeData(triB.Edges[eIdx]);
+                }
             }
             
             public class TriEdgeData
@@ -264,6 +387,20 @@ namespace ioDelaunay
             {
                 return (Triangle) D.m_Polys[_triID];
             }
+        }
+    }
+    /// <summary>
+    /// Comparer for comparing two keys, handling equality as beeing greater
+    /// Use this Comparer e.g. with SortedLists or SortedDictionaries, that don't allow duplicate keys
+    /// </summary>
+    /// <typeparam name="TKey"></typeparam>
+    internal class DuplicateKeyComparer<TKey> : IComparer<TKey> where TKey : IComparable
+    {
+        public int Compare(TKey _x, TKey _y)
+        {
+            int result = _x.CompareTo(_y);
+
+            return result == 0 ? 1 : result;
         }
     }
 }

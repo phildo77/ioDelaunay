@@ -480,18 +480,20 @@ namespace ioDelaunay
             private int[] SortCW(int _siteVertIdx, int[] _vorVertIdxs, Vector2f _refVec)
             {
                 var sitePos = D.Points[_siteVertIdx];
-                var centerIdxsCW = new SortedList<float, int>();
+                var centerIdxsCW = new SortedList<float, int>(new DuplicateKeyComparer<float>());
                 foreach (var vorVertIdx in _vorVertIdxs)
                 {
                     var triCentPos = Points[vorVertIdx];
                     var vecCent = (triCentPos - sitePos).normalized;
                     var theta = _refVec.AngleCW(vecCent);
-                    centerIdxsCW.Add(theta, vorVertIdx);
+                    centerIdxsCW.Add(theta, vorVertIdx);  //TODO handle theta collisions
 
                 }
 
                 return centerIdxsCW.Values.ToArray();
             }
+            
+            
             
         }
     }

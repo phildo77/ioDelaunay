@@ -104,7 +104,7 @@ namespace ioDelaunay
         {
             Init();
             
-            for (var rIdx = 3; rIdx < m_VertIdxsByR.Length; ++rIdx)
+            for (var rIdx = 0; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
@@ -119,7 +119,10 @@ namespace ioDelaunay
 
                 var fiData = D.Legalize(tri.ID);
                 LegalizeFrontier(fiData);
-
+                
+                // TODO DEBUG
+                //DebugVisualizer.Visualize(D, null, "Add Tri " + rIdx);
+                
                 // 3) Walk Left
                 Walk(RL.Left, newFntPt.VertIdx);
                 
@@ -176,28 +179,47 @@ namespace ioDelaunay
             }
         }
 
-        private Vector2f CalcOrigin()
+        private Vector2f CalcOrigin(out int[] _firstTriIdxs) //TODO inefficient?
         {
             var cent = Bounds.center;
-            var closest = new SortedList<float, int>();
-            for (var idx = 0; idx < D.Points.Count; ++idx)
+            var closest = new SortedList<float, int>
+            {
+                { (cent - D.Points[0]).sqrMagnitude, 0},
+                { (cent -D.Points[1]).sqrMagnitude, 1},
+                { (cent - D.Points[2]).sqrMagnitude, 2}
+            };
+            for (var idx = 3; idx < D.Points.Count; ++idx)
             {
                 var pt = D.Points[idx];
                 var distSqr = (cent - pt).sqrMagnitude;
-                if (closest.Count <= 3)
-                {
-                    closest.Add(distSqr, idx);
-                    continue;
-                }
-
                 if (distSqr > closest.Keys[2])
                     continue;
-
                 closest.Add(distSqr, idx);
             }
 
-            var closestPoints = new[] {closest.Values[0], closest.Values[1], closest.Values[2]};
-            var triPts = new[] {D.Points[closestPoints[0]], D.Points[closestPoints[1]], D.Points[closestPoints[2]]};
+            _firstTriIdxs = new[] {closest.Values[0], closest.Values[1], closest.Values[2]};
+            //Find 1st non-linear set of points (valid triangle)
+            var findNonLineIdx = 3;
+            while (Geom.AreColinear(D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]))
+            {
+                _firstTriIdxs[2] = closest[findNonLineIdx++];
+            }
+            
+            //Force Clockwise
+            var v0 = D.Points[_firstTriIdxs[0]];
+            var v1 = D.Points[_firstTriIdxs[1]];
+            var v2 = D.Points[_firstTriIdxs[2]];
+            var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
+            if (angleCCW > 0)
+            {
+                var tempIdx = _firstTriIdxs[1];
+                _firstTriIdxs[1] = _firstTriIdxs[2];
+                _firstTriIdxs[2] = tempIdx;
+            }
+            
+            
+            
+            var triPts = new[] {D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]};
             var cc = Geom.CentroidOfPoly(triPts);
             return cc;
         }
@@ -329,45 +351,25 @@ namespace ioDelaunay
 
         private void Init()
         {
-            Origin = CalcOrigin();
+            int[] firstTriIdxs;
+            Origin = CalcOrigin(out firstTriIdxs);
             m_PolPos = D.Points.Select(_pt => new PolartPt(_pt, Origin, this)).ToArray();
 
-            m_VertIdxsByR = new int[D.Points.Count];
+            m_VertIdxsByR = new int[D.Points.Count - 3];
+
+            //Sort Indexes By Distance to Origin
             var vertIdxsToSort = new List<int>();
             for (var idx = 0; idx < D.Points.Count; ++idx)
                 vertIdxsToSort.Add(idx);
-
+            vertIdxsToSort.Remove(firstTriIdxs[0]);
+            vertIdxsToSort.Remove(firstTriIdxs[1]);
+            vertIdxsToSort.Remove(firstTriIdxs[2]);
             //Sort CW
             m_VertIdxsByR = vertIdxsToSort.OrderBy(_idx => m_PolPos[_idx].r).ToArray();
             
             
             //Init Frontier
-            var triVertIdxs = new[] {m_VertIdxsByR[0], m_VertIdxsByR[1], m_VertIdxsByR[2]};
-            //Sort points clockwise
-            var v0 = D.Points[triVertIdxs[0]];
-            var v1 = D.Points[triVertIdxs[1]];
-            var v2 = D.Points[triVertIdxs[2]];
-
-            //Force Clockwise and avoid line
-            var lastIdx = 2;
-            var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
-            //Check for line
-            while (angleCCW <= float.Epsilon && angleCCW >= -float.Epsilon)
-            {
-                v2 = D.Points[m_VertIdxsByR[++lastIdx]];
-                angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
-            }
-
-            triVertIdxs[2] = m_VertIdxsByR[lastIdx];
-            
-            //Force CW
-            if (angleCCW > 0)
-            {
-                var tempIdx = triVertIdxs[1];
-                triVertIdxs[1] = triVertIdxs[2];
-                triVertIdxs[2] = tempIdx;
-            }
-            var firstTri = new Delaunay.Triangle(triVertIdxs[0], triVertIdxs[1], triVertIdxs[2], D);
+            var firstTri = new Delaunay.Triangle(firstTriIdxs[0], firstTriIdxs[1], firstTriIdxs[2], D);
 
             frontier = new Frontier(firstTri, this);
         }
@@ -651,22 +653,19 @@ namespace ioDelaunay
             public PolartPt(Vector2f _cPt, Vector2f _origin, CircleSweep _cs)
             {
                 CS = _cs;
-                var nx = _cPt.x - _origin.x;
-                var ny = _cPt.y - _origin.y;
 
-                r = (float) Math.Sqrt(nx * nx + ny * ny);
-                Theta = AngleFromOrigin(_origin, _cPt);
+                var vec = _cPt - _origin;
+                r = vec.magnitude;  //TODO optimize (use sqr?)
+
+                var from = Vector2f.right - _origin;
+                Theta = from.AngleCW(vec);
+                //var nx = _cPt.x - _origin.x;
+                //var ny = _cPt.y - _origin.y;
+
+                //r = (float) Math.Sqrt(nx * nx + ny * ny);
+                //Theta = AngleFromOrigin(_origin, _cPt);
             }
             
-            /// <summary>
-            ///     Angle to origin, x axis clockwise.
-            /// </summary>
-            private static float AngleFromOrigin(Vector2f _origin, Vector2f _pt)
-            {
-                var to = _pt - _origin;
-                var from = Vector2f.right - _origin;
-                return from.AngleCW(to);
-            }
         }
     }
 }

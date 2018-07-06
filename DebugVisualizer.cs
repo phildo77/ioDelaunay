@@ -21,10 +21,10 @@ namespace ioDelaunay
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (5000), (int) (5000));
+            var bitmap = new Bitmap((int) (1000), (int) (1000));
             var originOffset = _d.BoundsRect.min;
-            originOffset.x += 500;
-            originOffset.y += 500;
+            originOffset.x += 12000;
+            originOffset.y += 12000;
             var vectTextDrawn = new HashSet<int>();
 
 
@@ -175,10 +175,9 @@ namespace ioDelaunay
             }
             
             //Temp
-            /*
             {
-                var cent = _d.BoundsRect.center - originOffset;
-                var v1 = _v.Points[1970] - originOffset;
+                var cent = ((CircleSweep)(_d.triangulator)).Origin - originOffset;
+                var v1 = _d.Points[308043] - originOffset;
                 
                 using (var g = Graphics.FromImage(bitmap))
                 {
@@ -189,7 +188,7 @@ namespace ioDelaunay
                     g.DrawLine(pen, cent.x, cent.y, v1.x, v1.y);
 
                 }
-            }*/
+            }
             
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
             bitmap.Save(path);

@@ -56,5 +56,34 @@ namespace ioDelaunay
             return new Vector2f(x, y);
             */
         }
+        
+        public static bool AreColinear(Vector2f _v0, Vector2f _v1, Vector2f _v2) //TODO Dynamic Epsilon
+        {
+
+            return ((_v0.y - _v1.y) * (_v0.x - _v2.x)).ApproxEqual((_v0.y - _v2.y) * (_v0.x - _v1.x), 1f / 1000000f);
+            
+        }
+
+        public static bool ApproxEqual(this float _a, float _b, float _epsilon)
+        {
+            float absA = Math.Abs(_a);
+            float absB = Math.Abs(_b);
+            float diff = Math.Abs(_a - _b);
+
+            if (_a == _b)
+            { // shortcut, handles infinitiess
+                return true;
+            } 
+            else if (_a == 0 || _b == 0 || diff < float.Epsilon) 
+            {
+                // _a or _b is zero or both are extremely close to it
+                // relative error is less meaningful here
+                return diff < _epsilon;
+            }
+            else
+            { // use relative error
+                return diff / (absA + absB) < _epsilon;
+            }
+        }
     }
 }

@@ -90,6 +90,17 @@ namespace ioPolygonGraph
             
             protected Dictionary<int, int> m_OriginToEdgeIdx;
 
+            protected Poly(bool _closed, PolygonGraph _g)
+            {
+                G = _g;
+                ID = Guid.NewGuid();
+                G.m_Polys.Add(ID, this);
+                Closed = _closed;
+                Edges = new List<HalfEdge>();
+                m_OriginToEdgeIdx = new Dictionary<int, int>();
+                
+            }
+            
             protected Poly(int[] _vertIdxsOrdered, bool _closed, PolygonGraph _g)
             {
                 G = _g;
@@ -99,6 +110,21 @@ namespace ioPolygonGraph
                 Reform(_vertIdxsOrdered);
             }
 
+            public HalfEdge AddEdge(int _originIdx, HalfEdge _twin)
+            {
+                var edge = new HalfEdge(this, _originIdx, G);
+                Edges.Add(edge);
+
+                m_OriginToEdgeIdx.Add(_originIdx, Edges.Count - 1);
+                G.m_PolysContainingVert[_originIdx].Add(ID);
+                
+                if (_twin != null)
+                    edge.Twin = _twin;
+
+                return edge;
+
+            }
+            
             public List<int> VertIdxs => Edges.Select(_edge => _edge.OriginIdx).ToList();
             
             public PolygonGraph G { get; }
@@ -184,7 +210,7 @@ namespace ioPolygonGraph
             {
                 public int OriginIdx;
                 public Vector2f OriginPos => G.Points[OriginIdx];
-                public readonly Guid PolyID;
+                public Guid PolyID;
 
                 public Vector2f AsVector
                 {
