@@ -101,6 +101,7 @@ namespace ioPolygonGraph
                 
             }
             
+            
             protected Poly(int[] _vertIdxsOrdered, bool _closed, PolygonGraph _g)
             {
                 G = _g;
@@ -109,11 +110,18 @@ namespace ioPolygonGraph
                 Closed = _closed;
                 Reform(_vertIdxsOrdered);
             }
+            
 
             public HalfEdge AddEdge(int _originIdx, HalfEdge _twin)
             {
                 var edge = new HalfEdge(this, _originIdx, G);
                 Edges.Add(edge);
+                if (Edges.Count != 1)
+                {
+                    var prevEdge = Edges[Edges.Count - 2];
+                    prevEdge.NextEdge = edge;
+                }
+                edge.NextEdge = Closed ? Edges[0] : null;
 
                 m_OriginToEdgeIdx.Add(_originIdx, Edges.Count - 1);
                 G.m_PolysContainingVert[_originIdx].Add(ID);
@@ -172,7 +180,7 @@ namespace ioPolygonGraph
             }
 
             
-            
+            // TODO - FindAndSetTwin should be explicit for optimization
             public void Reform(int[] _vertIdxsOrdered)
             {
                 if (Edges != null)
@@ -197,13 +205,18 @@ namespace ioPolygonGraph
                 {
                     originIdx = _vertIdxsOrdered[eIdx];
                     Edges.Add(new HalfEdge(this, originIdx, G));
+                    Edges[eIdx - 1].NextEdge = Edges[eIdx];
                     FindAndSetTwin(eIdx - 1);
                     m_OriginToEdgeIdx.Add(originIdx, eIdx);
                     G.m_PolysContainingVert[originIdx].Add(ID);
                 }
 
                 if (Closed)
+                {
                     FindAndSetTwin(Edges.Count - 1);
+                    Edges[Edges.Count - 1].NextEdge = Edges[0];
+                }
+                    
             }
 
             public class HalfEdge : IPolyGraphObj
@@ -211,6 +224,7 @@ namespace ioPolygonGraph
                 public int OriginIdx;
                 public Vector2f OriginPos => G.Points[OriginIdx];
                 public Guid PolyID;
+                public HalfEdge NextEdge;
 
                 public Vector2f AsVector
                 {
@@ -228,6 +242,7 @@ namespace ioPolygonGraph
                     OriginIdx = _originIdx;
                 }
 
+                /*
                 public HalfEdge NextEdge
                 {
                     get
@@ -238,6 +253,7 @@ namespace ioPolygonGraph
                         return Poly.Closed ? Poly.Edges[0] : null;
                     }
                 }
+                */
                 
                 public Poly Poly => G.GetPoly(PolyID);
 

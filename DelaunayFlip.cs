@@ -121,7 +121,7 @@ namespace ioDelaunay
                 var triA = (Triangle) _edgeData.Edge.Poly;
                 var triB = (Triangle) _edgeData.Edge.Twin.Poly;
 
-                triA.FlipEdge(_edgeData.vAB0Idx);
+                triA.FlipEdge(_edgeData);
                 
                 var outerEdges = new List<Triangle.TriEdgeData>
                 {
@@ -138,25 +138,25 @@ namespace ioDelaunay
             
             public Delaunay D { get; }
         }
-            
-            
+
+
+        private EdgeStack m_EdgeStack;
         public HashSet<int> Legalize(Guid _startTriID)
         {
-            var eStack = new EdgeStack(this);
             var affectedVerts = new HashSet<int>();
             var tri = (Triangle)m_Polys[_startTriID];
             foreach (var hEdge in tri.EdgeData)
-                eStack.Push(hEdge);
+                m_EdgeStack.Push(hEdge);
 
-            while (!eStack.IsEmpty)
+            while (!m_EdgeStack.IsEmpty)
             {
-                var edgeStackObj = eStack.Pop();
+                var edgeStackObj = m_EdgeStack.Pop();
                 if (edgeStackObj.IsDelaunay) continue;
-                var outerEdges = eStack.FlipEdge(edgeStackObj);
+                var outerEdges = m_EdgeStack.FlipEdge(edgeStackObj);
                 foreach (var oEdge in outerEdges)
                 {
                     affectedVerts.Add(oEdge.Edge.OriginIdx);
-                    eStack.Push(oEdge);
+                    m_EdgeStack.Push(oEdge);
                 }
                     
             }
