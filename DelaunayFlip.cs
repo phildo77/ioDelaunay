@@ -63,6 +63,7 @@ namespace ioDelaunay
                 return edge;
             }
 
+            
             private void RefreshEdge(Triangle.TriEdgeData _edge)
             {
                 /* DEBUG
@@ -75,53 +76,12 @@ namespace ioDelaunay
             
             public bool IsEmpty => m_KeyStack.Count == 0;
 
-            /*
-            public List<Triangle.TriEdgeData> Flip(Triangle.TriEdgeData _edgeData)
-            {
-                var triA = (Triangle)_edgeData.Edge.Poly;
-                var triB = (Triangle)_edgeData.Edge.Twin.Poly;
-                var triAID = triA.ID;
-                var triBID = triB.ID;
-                var a2Idx = _edgeData.vA2Idx;
-                var b2Idx = _edgeData.vB2Idx;
-                var ab0Idx = _edgeData.vAB0Idx;
-                var ab1Idx = _edgeData.vAB1Idx;
-                var newVertsA = new[]
-                {
-                    a2Idx, b2Idx, ab1Idx
-                };
-                var newVertsB = new[]
-                {
-                    b2Idx, a2Idx, ab0Idx
-                };
-                
-                D.RemovePoly(triAID);
-                D.RemovePoly(triBID);
-                
-                triA = new Triangle(newVertsA[0], newVertsA[1], newVertsA[2], D);
-                triB = new Triangle(newVertsB[0], newVertsB[1], newVertsB[2], D);
-
-                var outerEdges = new List<Triangle.TriEdgeData>
-                {
-                    triA.EdgeDataWithOrigin(ab1Idx),
-                    triB.EdgeDataWithOrigin(a2Idx),
-                    triB.EdgeDataWithOrigin(ab0Idx),
-                    triA.EdgeDataWithOrigin(b2Idx)
-                };
-
-                foreach (var edge in outerEdges)
-                    RefreshEdge(edge);
-                
-                return outerEdges;
-            }
-            */
-            
-            public List<Triangle.TriEdgeData> FlipEdge(Triangle.TriEdgeData _edgeData)
+            public List<Triangle.TriEdgeData> FlipEdgeOld(Triangle.TriEdgeData _edgeData)
             {
                 var triA = (Triangle) _edgeData.Edge.Poly;
                 var triB = (Triangle) _edgeData.Edge.Twin.Poly;
 
-                triA.FlipEdge(_edgeData);
+                triA.FlipEdgeOld(_edgeData);
                 
                 var outerEdges = new List<Triangle.TriEdgeData>
                 {
@@ -137,13 +97,14 @@ namespace ioDelaunay
             }
             
             public Delaunay D { get; }
+            
         }
 
 
         private EdgeStack m_EdgeStack;
-        public HashSet<int> Legalize(Guid _startTriID)
+
+        public void LegalizeOld(int _startTriID)
         {
-            var affectedVerts = new HashSet<int>();
             var tri = (Triangle)m_Polys[_startTriID];
             foreach (var hEdge in tri.EdgeData)
                 m_EdgeStack.Push(hEdge);
@@ -152,19 +113,35 @@ namespace ioDelaunay
             {
                 var edgeStackObj = m_EdgeStack.Pop();
                 if (edgeStackObj.IsDelaunay) continue;
-                var outerEdges = m_EdgeStack.FlipEdge(edgeStackObj);
+                var outerEdges = m_EdgeStack.FlipEdgeOld(edgeStackObj);
                 foreach (var oEdge in outerEdges)
-                {
-                    affectedVerts.Add(oEdge.Edge.OriginIdx);
                     m_EdgeStack.Push(oEdge);
-                }
-                    
             }
+        }
 
-            return affectedVerts;
+
+
+        private Stack<Poly.HalfEdge> m_EdgeStack2 = new Stack<Poly.HalfEdge>();
+        //private HashSet<Poly.HalfEdge> m_EdgesPending = new HashSet<Poly.HalfEdge>();
+        public void Legalize(params Poly.HalfEdge[] _edges)
+        {
+            foreach (var edge in _edges)
+                if(edge.Twin != null)
+                    m_EdgeStack2.Push(edge);
+            
+            while (m_EdgeStack2.Count != 0)
+            {
+                var curEdge = m_EdgeStack2.Pop();
+                //m_EdgesPending.Remove(curEdge);
+                if (curEdge.IsDelaunay()) continue;
+                var oEdges = curEdge.FlipEdge();
+                foreach(var oEdge in oEdges)
+                    if (oEdge.Twin != null)
+                        m_EdgeStack2.Push(oEdge);
+                            
+            }
         }
         
-
 
     }
 }

@@ -7,7 +7,7 @@ namespace ioDelaunay
 {
     public static class Geom
     {
-        public static bool Circumcircle(Vector2f p0, Vector2f p1, Vector2f p2, out Vector2f center, out float radiusSqr)
+        public static bool Circumcircle2(Vector2f p0, Vector2f p1, Vector2f p2, out Vector2f center, out float radiusSqr)
         {
             double dp0x = p0.x;
             double dp0y = p0.y;
@@ -55,6 +55,53 @@ namespace ioDelaunay
             var y = _pts.Sum(_pt => _pt.y) / count;
             return new Vector2f(x, y);
             */
+        }
+        
+        
+        private static T Min<T> (params T[] _vals) {
+            return _vals.Min();
+        }
+        private static T Max<T> (params T[] _vals) {
+            return _vals.Max();
+        }
+
+        
+        public static bool Circumcircle(Vector2f a, Vector2f b, Vector2f c, out Vector2f center, out float radiusSqr)
+        {
+            var A = b.x - a.x;
+            var B = b.y - a.y;
+            var C = c.x - a.x;
+            var D = c.y - a.y;
+            var E = A * (a.x + b.x) + B * (a.y + b.y);
+            var F = C * (a.x + c.x) + D * (a.y + c.y);
+            var G = 2 * (A * (c.y - b.y) - B * (c.x - b.x));
+
+            float minx, miny, dx, dy;
+
+            /* If the points of the triangle are collinear, then just find the
+             * extremes and use the midpoint as the center of the circumcircle. */
+
+            if(Math.Abs(G) < 0.000001)
+            {
+                minx = Min(a.x, b.x, c.x);
+                miny = Min(a.y, b.y, c.y);
+                dx = (Max(a.x, b.x, c.x) - minx) * 0.5f;
+                dy = (Max(a.y, b.y, c.y) - miny) * 0.5f;
+
+                center = new Vector2f(minx + dx, miny + dy);
+                radiusSqr = dx * dx + dy * dy;
+            } else {
+                var cx = (D * E - B * F) / G;
+                var cy = (A * F - C * E) / G;
+
+                center = new Vector2f(cx, cy);
+                dx = cx - a.x;
+                dy = cy - a.y;
+
+                radiusSqr = dx * dx + dy * dy;
+            }
+
+            return true;
         }
         
         public static bool AreColinear(Vector2f _v0, Vector2f _v1, Vector2f _v2) //TODO Dynamic Epsilon

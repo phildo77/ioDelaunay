@@ -12,6 +12,8 @@ namespace ioDelaunay
     {
         public class Voronoi : PolygonGraph, IDelaunayObj
         {
+
+            private Dictionary<int, HashSet<int>> m_SitesContainingVert;
             public class Settings
             {
                 /// <summary>
@@ -60,21 +62,23 @@ namespace ioDelaunay
 
             public Settings settings;
             
-            private readonly Dictionary<int, Guid> m_TriIDByCentIdx;
-            private readonly Dictionary<Guid, int> m_CentIdxByTriID; //Delaunay triangle centers;
-            private readonly Dictionary<int, Guid> m_SiteIDByDVertIdx;
+            private readonly Dictionary<int, int> m_TriIDByCentIdx;
+            private readonly Dictionary<int, int> m_CentIdxByTriID; //Delaunay triangle centers;
+            private readonly Dictionary<int, int> m_SiteIDByDVertIdx;
             
-            public Site[] Sites => m_Polys.Values.Cast<Site>().ToArray();
+            public Site[] Sites => m_Polys.Cast<Site>().ToArray();
 
             public Voronoi(Delaunay _d, Settings _settings = null) : base()
             {
                 settings = _settings;
                 D = _d;
 
-                m_CentIdxByTriID = new Dictionary<Guid, int>();
-                m_TriIDByCentIdx = new Dictionary<int, Guid>();
-                m_SiteIDByDVertIdx = new Dictionary<int, Guid>();
-
+                m_CentIdxByTriID = new Dictionary<int, int>();
+                m_TriIDByCentIdx = new Dictionary<int, int>();
+                m_SiteIDByDVertIdx = new Dictionary<int, int>();
+                m_SitesContainingVert = new Dictionary<int, HashSet<int>>();
+                for (int dIdx = 0; dIdx < _d.Points.Count; ++dIdx)
+                    m_SitesContainingVert.Add(dIdx, new HashSet<int>());
                 Init();
 
             }
@@ -86,7 +90,7 @@ namespace ioDelaunay
                 m_SiteIDByDVertIdx.Clear();
                 Points.Clear();
                 m_Polys.Clear();
-                m_PolysContainingVert.Clear();
+                m_SitesContainingVert.Clear();
                 m_BoundsRect = Rectf.zero;
                 
                 var delTris = D.Triangles;
@@ -134,17 +138,36 @@ namespace ioDelaunay
                 
                 BuildSites(DBounds);
             }
-            
+
             private void BuildSites(Rectf _bounds)
             {
-                var sIDsOutBnds = new List<Guid>();
+                var siteDelIdxsComplete = new HashSet<int>();
+                var circumCents = new List<Vector2f>();
+                var dPts = D.Points;
+                
+                //Calculate Circumcenters - TODO do in Delaunay triangulation 4 opt?
+                
+                
+                
+                //Build sites - internal only?
+                for (int dIdx = 0; dIdx < dPts.Count; ++dIdx)
+                {
+                    if (D.HullIdxs.Contains(dIdx)) continue;
+                    
+                }
+                
+            }
+            
+            private void BuildSites2(Rectf _bounds)
+            {
+                var sIDsOutBnds = new List<int>();
                 
                 
                 //Inner sites
                 for(int delIdx = 0; delIdx < D.Points.Count; ++delIdx)
                 {
                     if (D.HullIdxs.Contains(delIdx)) continue;
-                    var centers = GetCenterIdxsAtSite(delIdx);
+                    var centers = GetCenterIdxsAtSite(delIdx);  //TODO REWRITE
                     var centersCW = SortCW(delIdx, centers.ToArray());
 
                     var site = new Site(centersCW, delIdx, true, this);
@@ -157,6 +180,8 @@ namespace ioDelaunay
                         }
                     }
                 }
+                
+                
                 
                 Site prevSite = null;
                 int firstSiteBackVertIdx = -1;
@@ -244,10 +269,10 @@ namespace ioDelaunay
             }
 
             
-            private void TrimSitesToBndry(List<Guid> _siteIDs, Rectf _bnd)
+            private void TrimSitesToBndry(List<int> _siteIDs, Rectf _bnd)
             {
                 var vertIdxsToRemove = new HashSet<int>();
-                Guid lastSiteID = Guid.Empty;
+                int lastSiteID = -1;
                 int firstInVertIdx = -1;
                 var prevOutVertIdx = -1;
                 Site prevSite = null;
@@ -361,7 +386,6 @@ namespace ioDelaunay
                 DebugVisualizer.Visualize(D,this,"VorPostVertRemove");
             }
             
-
             private Vector2f GetIntersectionToBndy(Vector2f _fromPt, Vector2f _fromDir, Rectf _bnd)
             {
                 BndSide unused;
@@ -414,17 +438,15 @@ namespace ioDelaunay
                     var centroids = new List<Vector2f>();
                     foreach (var polykvp in m_Polys)
                     {
-                        var site = (Site) polykvp.Value;
+                        var site = (Site) polykvp;
                         var centroid = Geom.CentroidOfPoly(site.VertIdxs.Select(_vIdx => Points[_vIdx]));
                         centroids.Add(centroid);
-    
                     }
                     
                     D.ReTriangulate(centroids);
                     Init();
                     BuildSites(DBounds);
                 }
-
             }
             
             private static Vector2f Intersect(Vector2f _rayA, Vector2f _rayB, Vector2f _originA, Vector2f _originB)
@@ -451,9 +473,84 @@ namespace ioDelaunay
                     V = _v;
                     VertDelIdx = _vertDelIdx;
                     V.m_SiteIDByDVertIdx.Add(_vertDelIdx, ID);
+                    foreach (var vIdx in _vertIdxs)
+                        _v.m_SitesContainingVert[vIdx].Add(ID);
                 }
 
                 public Voronoi V { get; }
+                
+                //TODO Optimize
+            private void FindAndSetTwin(int _edgeIdx)
+            {
+                var vA1Idx = -1;
+                if (_edgeIdx == Edges.Count - 1)
+                {
+                    if (!Closed) return;
+                    vA1Idx = Edges[0].OriginIdx;
+                }
+                else
+                    vA1Idx = Edges[_edgeIdx + 1].OriginIdx;
+                //Twins
+                var vA0Idx = Edges[_edgeIdx].OriginIdx;
+                var nbrPolys = V.m_SitesContainingVert[vA0Idx].Intersect(V.m_SitesContainingVert[vA1Idx])
+                    .Except(new HashSet<int> {ID});
+                    
+                //DEBUG
+                //if(nbrPolys.Count > 1)
+                //    Console.WriteLine("Debug");
+                
+
+               if (nbrPolys.Count() == 1)
+                {
+                    var nbrPoly = V.m_Polys[nbrPolys.First()];
+                    var twin = nbrPoly.EdgeWithOrigin(vA1Idx);
+                    if (twin.NextEdge.OriginIdx != vA0Idx)
+                        twin = nbrPoly.EdgeWithOrigin(vA0Idx);
+                    Edges[_edgeIdx].Twin = twin;
+                }
+            }
+            
+            
+            // TODO - FindAndSetTwin should be explicit for optimization
+            
+            public void Reform(int[] _vertIdxsOrdered)
+            {
+                if (Edges != null)
+                {
+                    for (int eIdx = 0; eIdx < Edges.Count; ++eIdx)
+                    {
+                        V.m_SitesContainingVert[Edges[eIdx].OriginIdx].Remove(ID);
+                        if (Edges[eIdx].Twin != null)
+                            Edges[eIdx].Twin.Twin = null;
+                    }
+                }
+                    
+                Edges = new List<HalfEdge>();
+                
+                //m_OriginToEdgeIdx = new Dictionary<int, int>();
+
+                var originIdx = _vertIdxsOrdered[0];
+                Edges.Add(new HalfEdge(this, _vertIdxsOrdered[0], G));
+                //m_OriginToEdgeIdx.Add(originIdx, 0);
+                V.m_SitesContainingVert[originIdx].Add(ID);
+                for (int eIdx = 1; eIdx < _vertIdxsOrdered.Length; ++eIdx)
+                {
+                    originIdx = _vertIdxsOrdered[eIdx];
+                    Edges.Add(new HalfEdge(this, originIdx, G));
+                    Edges[eIdx - 1].NextEdge = Edges[eIdx];
+                    FindAndSetTwin(eIdx - 1);
+                    //m_OriginToEdgeIdx.Add(originIdx, eIdx);
+                    V.m_SitesContainingVert[originIdx].Add(ID);
+                }
+
+                if (Closed)
+                {
+                    FindAndSetTwin(Edges.Count - 1);
+                    Edges[Edges.Count - 1].NextEdge = Edges[0];
+                }
+                    
+            }
+                
             }
 
             private interface IVoronoiObj
@@ -463,7 +560,8 @@ namespace ioDelaunay
 
             private HashSet<int> GetCenterIdxsAtSite(int _siteVertIdx)
             {
-                var triIDs = D.m_PolysContainingVert[_siteVertIdx];
+                
+                var triIDs = m_SitesContainingVert[_siteVertIdx];
                 var centerIdxs = new HashSet<int>();
                 foreach (var triID in triIDs)
                     centerIdxs.Add(m_CentIdxByTriID[triID]);

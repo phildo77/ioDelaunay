@@ -17,14 +17,23 @@ namespace ioDelaunay
         private static readonly Color m_ColorCircles = Color.Aquamarine;
         private static readonly Color m_ColorVor = Color.DodgerBlue;
         public static bool Enabled = false;
+        public static Vector2f OriginOffsetOverride = Vector2f.positiveInfinity;
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (1000), (int) (1000));
+            var bitmap = new Bitmap((int) (1500), (int) (1500));
+            
             var originOffset = _d.BoundsRect.min;
-            originOffset.x += 12000;
-            originOffset.y += 12000;
+            originOffset.x += 0 - bitmap.Width / 2f;
+            originOffset.y += 0 - bitmap.Height / 2f;
+            if (!float.IsInfinity(OriginOffsetOverride.x))
+            {
+                originOffset = _d.BoundsRect.min;
+                originOffset.x += OriginOffsetOverride.x - bitmap.Width / 2f;
+                originOffset.y += OriginOffsetOverride.y - bitmap.Height / 2f;
+            }
+            
             var vectTextDrawn = new HashSet<int>();
 
 
@@ -177,7 +186,7 @@ namespace ioDelaunay
             //Temp
             {
                 var cent = ((CircleSweep)(_d.triangulator)).Origin - originOffset;
-                var v1 = _d.Points[308043] - originOffset;
+                var v1 = _d.Points[326757] - originOffset;
                 
                 using (var g = Graphics.FromImage(bitmap))
                 {
@@ -192,6 +201,11 @@ namespace ioDelaunay
             
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
             bitmap.Save(path);
+        }
+
+        public static void SetZoom(Vector2f _center, Vector2f _size)
+        {
+            
         }
 
         public static Color RandColor(Random _r)
@@ -281,6 +295,20 @@ namespace ioDelaunay
                 bitmap.Save(path);
             }
             
+        }
+        
+        public static Bitmap CropImage(Bitmap source, Rectangle section)
+        {
+            // An empty bitmap which will hold the cropped image
+            Bitmap bmp = new Bitmap(section.Width, section.Height);
+
+            Graphics g = Graphics.FromImage(bmp);
+
+            // Draw the given area (section) of the source image
+            // at location 0,0 on the empty bitmap (bmp)
+            g.DrawImage(source, 0, 0, section, GraphicsUnit.Pixel);
+
+            return bmp;
         }
     }
 }

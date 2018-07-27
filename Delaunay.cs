@@ -31,7 +31,6 @@ namespace ioDelaunay
         {
             Points.Clear();
             m_Polys.Clear();
-            m_PolysContainingVert.Clear();
             m_BoundsRect = Rectf.zero;
 
             AddVertices(_points);
@@ -40,13 +39,13 @@ namespace ioDelaunay
         }
 
 
-        public Triangle[] Triangles => m_Polys.Values.Cast<Triangle>().ToArray();
+        public Triangle[] Triangles => m_Polys.Cast<Triangle>().ToArray();
 
         public Mesh Mesh
         {
             get
             {
-                var tris = m_Polys.Values.ToArray();
+                var tris = m_Polys.ToArray();
                 var triIdxs = new int[m_Polys.Count * 3];
                 for (var tIdx = 0; tIdx < tris.Length; ++tIdx)
                 for (var vIdx = 0; vIdx < 3; ++vIdx)
@@ -163,7 +162,11 @@ namespace ioDelaunay
 
             public TriEdgeData EdgeDataWithOrigin(int _idx)
             {
-                return EdgeData[m_OriginToEdgeIdx[_idx]];
+                for(var eIdx = 0; eIdx < EdgeData.Length; ++eIdx)
+                    if (EdgeData[eIdx].Edge.OriginIdx == _idx)
+                        return EdgeData[eIdx];
+                return null;
+                //return EdgeData[m_OriginToEdgeIdx[_idx]];
             }
 
             public Triangle(HalfEdge _twinLt, HalfEdge _twinRt, Delaunay _d) : base(true, _d)
@@ -235,13 +238,11 @@ namespace ioDelaunay
                 Geom.Circumcircle(Edges[0].OriginPos, Edges[1].OriginPos, Edges[2].OriginPos, out _center, out _rSqr);
             }
 
-            public void FlipEdge(TriEdgeData _edgeDataA)
+            public void FlipEdgeOld(TriEdgeData _edgeDataA)
             {
                 var oldEdgeA = _edgeDataA.Edge;
                 var triA = (Triangle) oldEdgeA.Poly;
                 var triB = (Triangle) oldEdgeA.Twin.Poly;
-                var ab0Idx = _edgeDataA.vAB0Idx;
-                var ab1Idx = _edgeDataA.vAB1Idx;
                 var a2Idx = _edgeDataA.vA2Idx;
                 var b2Idx = _edgeDataA.vB2Idx;
                 
@@ -277,28 +278,8 @@ namespace ioDelaunay
                 newEdgesA[2].PolyID = triA.ID;
                 newEdgesB[2].PolyID = triB.ID;
                 
-                D.m_PolysContainingVert[ab1Idx].Remove(triA.ID);
-                D.m_PolysContainingVert[ab0Idx].Remove(triB.ID);
-
-                D.m_PolysContainingVert[b2Idx].Add(triA.ID);
-                D.m_PolysContainingVert[a2Idx].Add(triB.ID);
-                
                 triA.Edges = newEdgesA;
                 triB.Edges = newEdgesB;
-                
-                triA.m_OriginToEdgeIdx = new Dictionary<int, int>
-                {
-                    {b2Idx, 0},
-                    {a2Idx, 1},
-                    {ab0Idx, 2}
-                };
-                
-                triB.m_OriginToEdgeIdx = new Dictionary<int, int>
-                {
-                    {a2Idx, 0},
-                    {b2Idx, 1},
-                    {ab1Idx, 2}
-                };
                 
                 newEdgesA[0].Twin = newEdgesB[0];
                 
@@ -308,6 +289,7 @@ namespace ioDelaunay
                     triB.EdgeData[eIdx] = new TriEdgeData(triB.Edges[eIdx]);
                 }
             }
+            
             
             public class TriEdgeData
             {
@@ -367,8 +349,6 @@ namespace ioDelaunay
         public abstract class Triangulator : ITriangulator
         {
             protected Delaunay D;
-            protected Dictionary<Guid, Poly> Polys => D.m_Polys;
-            protected List<HashSet<Guid>> PolysContainingVert => D.m_PolysContainingVert;
 
             void ITriangulator.SetTarget(Delaunay _d) { D = _d; }
 
@@ -397,7 +377,7 @@ namespace ioDelaunay
             /// </summary>
             /// <param name="_triID">ID of triangle</param>
             /// <returns>Triangle with corresponding ID</returns>
-            protected Triangle Tri(Guid _triID)
+            protected Triangle Tri(int _triID)
             {
                 return (Triangle) D.m_Polys[_triID];
             }
@@ -417,4 +397,108 @@ namespace ioDelaunay
             return result == 0 ? 1 : result;
         }
     }
+    
+    public static class Ext
+    {
+        public static bool IsDelaunay(this PolygonGraph.Poly.HalfEdge _edge)
+        {
+            var pts = _edge.G.Points;
+            
+            var a2 = pts[_edge.NextEdge.NextEdge.OriginIdx];
+            var b2 = pts[_edge.Twin.NextEdge.NextEdge.OriginIdx];
+            var ab0 = pts[_edge.OriginIdx];
+            var ab1 = pts[_edge.NextEdge.OriginIdx];
+            Vector2f ccCent;
+            float ccRadSqr;
+            if (!Geom.Circumcircle(a2, ab0, ab1, out ccCent, out ccRadSqr))
+                return false;  //Line condition
+
+            var distToCentSqr = (b2 - ccCent).sqrMagnitude;
+            if (!(distToCentSqr >= ccRadSqr)) 
+                return false;
+
+            if (!Geom.Circumcircle(b2, ab1, ab0, out ccCent, out ccRadSqr))
+                return false;  //Line condition
+
+            return (a2 - ccCent).sqrMagnitude >= ccRadSqr;
+        }
+
+        public static int VAB0Idx(this PolygonGraph.Poly.HalfEdge _edge)
+        {
+            return _edge.OriginIdx;
+        }
+
+        public static int VAB1Idx(this PolygonGraph.Poly.HalfEdge _edge)
+        {
+            return _edge.NextEdge.OriginIdx;
+        }
+
+        public static int VA2Idx(this PolygonGraph.Poly.HalfEdge _edge)
+        {
+            return _edge.NextEdge.NextEdge.OriginIdx;
+        }
+
+        public static int VB2Idx(this PolygonGraph.Poly.HalfEdge _edge)
+        {
+            return _edge.Twin.NextEdge.NextEdge.OriginIdx;
+        }
+
+        public static List<PolygonGraph.Poly.HalfEdge> FlipEdge(this PolygonGraph.Poly.HalfEdge _edgeA)
+        {
+            var oldEdgeA = _edgeA;
+            var oldEdgeB = oldEdgeA.Twin;
+            var triA = (Delaunay.Triangle) oldEdgeA.Poly;
+            var triB = (Delaunay.Triangle) oldEdgeA.Twin.Poly;
+            var a2Idx = _edgeA.VA2Idx();
+            var b2Idx = _edgeA.VB2Idx();
+                
+            //Get edges quickly
+            var newEB2 = oldEdgeA.NextEdge;
+            var newEA1 = newEB2.NextEdge;
+            var newEA2 = oldEdgeB.NextEdge;
+            var newEB1 = newEA2.NextEdge;
+
+            oldEdgeA.OriginIdx = b2Idx;
+            oldEdgeB.OriginIdx = a2Idx;
+            
+            var newEdgesA = new List<PolygonGraph.Poly.HalfEdge>
+            {
+                oldEdgeA,
+                newEA1,
+                newEA2
+            };
+                
+            newEdgesA[0].NextEdge = newEdgesA[1];
+            newEdgesA[1].NextEdge = newEdgesA[2];
+            newEdgesA[2].NextEdge = newEdgesA[0];
+
+            var newEdgesB = new List<PolygonGraph.Poly.HalfEdge>
+            {
+                oldEdgeB,
+                newEB1,
+                newEB2
+            };
+                
+            newEdgesB[0].NextEdge = newEdgesB[1];
+            newEdgesB[1].NextEdge = newEdgesB[2];
+            newEdgesB[2].NextEdge = newEdgesB[0];
+                
+            newEdgesA[2].PolyID = triA.ID;
+            newEdgesB[2].PolyID = triB.ID;
+                
+            triA.Edges = newEdgesA;
+            triB.Edges = newEdgesB;
+                
+            //newEdgesA[0].Twin = newEdgesB[0];
+                
+            return new List<PolygonGraph.Poly.HalfEdge>
+            {
+                newEdgesA[1],
+                newEdgesA[2],
+                newEdgesB[1],
+                newEdgesB[2]
+            };
+        }
+    }
 }
+
