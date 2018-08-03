@@ -131,7 +131,6 @@ namespace ioPolygonGraph
                     edge.Twin = _twin;
 
                 return edge;
-
             }
             
             public List<int> VertIdxs => Edges.Select(_edge => _edge.OriginIdx).ToList();

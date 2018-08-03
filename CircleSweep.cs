@@ -1,4 +1,7 @@
-﻿namespace ioDelaunay
+﻿using System.Runtime.CompilerServices;
+using Priority_Queue;
+
+namespace ioDelaunay
 {
     using System;
     using System.Collections;
@@ -20,7 +23,7 @@
         // Change
         // Don't change
         private PolartPt[] m_PolPos; //By Point Idx
-        private int[] m_VertIdxsByR;
+        private List<int> m_VertIdxsByR;
 
         #endregion Fields
 
@@ -70,13 +73,12 @@
             return trisContaining;
         }
         */
-        protected override void Algorithm(ref float _progress)
+        protected override void Algorithm()
         {
             Init();
 
-            for (var rIdx = 0; rIdx < m_VertIdxsByR.Length; ++rIdx)
+            for (var rIdx = 0; rIdx < m_VertIdxsByR.Count; ++rIdx)
             {
-                int debugIter = 95;
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
                 // 1) Project
@@ -84,28 +86,11 @@
                 var fntVerts = frontier.Project(thetaHit);
 
                 // 2) Create Tri and Legalize
-
-                if (rIdx == 150188)
-                {
-                    Trace.WriteLine("Debug");
-                    //DebugVisualizer.OriginOffsetOverride = D.Points[ofVertIdx];
-                    
-                    //DebugVisualizer.Visualize(D, null, "Bad Frontier Pre" + rIdx);
-                }
-                
-                
                 var tri = D.AddTriToMesh(ofVertIdx, fntVerts[0].EdgeRight);
                 var newFntPt = frontier.Add(ofVertIdx, tri, fntVerts[0], fntVerts[1]);
                 
-                if (rIdx == 150188)
-                {
-                    Trace.WriteLine("Debug");
-                    //DebugVisualizer.Visualize(D, null, "Bad Frontier Post" + rIdx);
-                }
                 D.Legalize(newFntPt.EdgeRight.NextEdge);
 
-                
-                //DebugCheckFrontier();
                 // 3) Walk Left
                 Walk(RL.Left, newFntPt);
                 // 4) Walk Right
@@ -114,14 +99,10 @@
                 FillBasin(RL.Right, newFntPt);
                 // 6) Check / Fill Basin Left
                 FillBasin(RL.Left, newFntPt);
-                _progress = rIdx / (float)m_VertIdxsByR.Length * 75;
-                
-                //DebugCheckFrontier();
             }
 
             // 7) Finalize
             FinalizeHull();
-            _progress = 95;
         }
 
         protected void FinalizeHull()
@@ -164,25 +145,19 @@
             }
         }
 
-        protected override void Hull(ref float _progress)
+        protected override void Hull()
         {
-            var startPct = _progress;
             var fpCnt = frontier.FPntCount;
             var curCnt = 0;
             var fScan = frontier.Project(0)[0];
             Frontier.FrontierPt fStart = fScan;
-            var hullIdxs = new List<int>() {fStart.VertIdx};
+            D.HullIdxs = new List<int>() {fStart.VertIdx};
             fScan = fScan.Right;
             while (fScan.VertIdx != fStart.VertIdx)
             {
-                hullIdxs.Add(fScan.VertIdx);
+                D.HullIdxs.Add(fScan.VertIdx);
                 fScan = fScan.Right;
-                _progress = startPct + (startPct - _progress) * curCnt++ / fpCnt;
             }
-
-            D.HullIdxs = hullIdxs.ToArray();
-
-            _progress = 100;
         }
 
         /// <summary>
@@ -243,22 +218,6 @@
             return BinarySearch(list, value, comparer.Compare);
         }
 
-        //TODO inefficient?
-        /*
-        private void LegalizeFrontier(HashSet<int> _affectedVerts)
-        {
-            foreach (var vertIdx in _affectedVerts)
-            {
-                if (!frontier.ContainsVert(vertIdx)) continue;
-                var fPt = frontier.GetHaving(vertIdx);
-                var rtIdx = fPt.Right.VertIdx;
-
-                var commonTris = GetTrisContainingAllVerts(fPt.VertIdx, rtIdx).ToArray();
-
-                fPt.EdgeRight = Tri(commonTris[0]).EdgeWithOrigin(vertIdx);
-            }
-        }
-        */
         private Vector2f CalcOrigin(out int[] _firstTriIdxs)
         {
             var cent = Bounds.center;
@@ -319,10 +278,15 @@
             if (h < 2) return;
 
             //Find Basin Min 
+            var ptCount = 2;
             var fBasStart = fvrp;
             var fBasMin = fBasStart;
             while (PolPos(fBasMin.VertIdx).r > PolPos(fBasMin[_dir].VertIdx).r)
+            {
                 fBasMin = fBasMin[_dir];
+                ptCount++;
+            }
+                
 
             //Find Basin End 
             var fBasEnd = fBasMin;
@@ -333,32 +297,37 @@
                 var angleCW = vecL.AngleCW(vecR);
                 if (angleCW >= Math.PI - float.Epsilon) break;
                 fBasEnd = fBasEnd[_dir];
+                ptCount++;
             }
 
             if (fBasEnd.VertIdx == fBasMin.VertIdx || fBasStart[_dir].VertIdx == fBasEnd.VertIdx) return;
 
             //Sort Basin points by R
-            var basinPts = new Dictionary<Frontier.FrontierPt, float> {{fBasEnd, PolPos(fBasEnd.VertIdx).r}};
+            //var basinPts = new Dictionary<Frontier.FrontierPt, float> {{fBasEnd, PolPos(fBasEnd.VertIdx).r}};
+            var basinPtQ = new FastPriorityQueue<Frontier.FrontierPt>(ptCount);
             var fBasScan = fBasStart;
             while (fBasScan.VertIdx != fBasEnd.VertIdx)
             {
-                basinPts.Add(fBasScan, PolPos(fBasScan.VertIdx).r);
+                //basinPts.Add(fBasScan, PolPos(fBasScan.VertIdx).r);
+                basinPtQ.Enqueue(fBasScan, m_PolPos[fBasScan.VertIdx].r);
                 fBasScan = fBasScan[_dir];
             }
 
-            var basinPtsByR = basinPts.OrderBy(_kvp => _kvp.Value).Select(_kvp => _kvp.Key).ToList();
+            //var basinPtsByR = basinPts.OrderBy(_kvp => _kvp.Value).Select(_kvp => _kvp.Key).ToList();
 
             //Triangluate Basin
 
-            while (basinPtsByR.Count > 2)
+            if (basinPtQ.Count < 3) return;
+            var newVerts = new[]
             {
-                var newVerts = new[]
-                {
-                    basinPtsByR[0],
-                    basinPtsByR[1],
-                    basinPtsByR[2]
-                };
-                
+                basinPtQ.Dequeue(),
+                basinPtQ.Dequeue(),
+                basinPtQ.Dequeue()
+            };
+            
+            //while (basinPtsByR.Count > 2)
+            while(basinPtQ.Count > 2)
+            {
                 //Find frontier point that will be removed
                 Frontier.FrontierPt fOut = newVerts[0];
                 if (!newVerts.Contains(fOut[RL.Right]) || !newVerts.Contains(fOut[RL.Left]))
@@ -379,9 +348,12 @@
                 frontier.Remove(fOut, twinLt.Twin.NextEdge);
 
                 D.Legalize(twinLt.Twin, twinRt.Twin);
-                //LegalizeFrontier(changedVerts);
 
-                basinPtsByR.Remove(fOut);
+                //basinPtsByR.Remove(fOut);
+
+                newVerts[0] = newVerts[1];
+                newVerts[1] = newVerts[2];
+                newVerts[2] = basinPtQ.Dequeue();
             }
         }
 
@@ -412,102 +384,23 @@
             
         }
 */
-        /*
-        private void FillBasinOld(RL _dir, Frontier.FrontierPt _fpt)
-        {
-            //Setup
-            var fvi = _fpt;
-            var fvrp = fvi[_dir][_dir];
-            var polvi = PolPos(fvi.VertIdx);
-            var polvrp = PolPos(fvrp.VertIdx);
-
-            var r2 = polvrp.r;
-            var dr = polvi.r - r2;
-            var dTheta = _dir == RL.Right ? polvrp.Theta - polvi.Theta : polvi.Theta - polvrp.Theta;
-
-            //Check heuristic
-            var h = dr / (r2 * dTheta);
-            if (h < 2) return;
-
-            //Find Basin Min
-            var fBasStart = fvrp;
-            var fBasMin = fBasStart;
-            while (PolPos(fBasMin.VertIdx).r > PolPos(fBasMin[_dir].VertIdx).r)
-                fBasMin = fBasMin[_dir];
-
-            //Find Basin End
-            var fBasEnd = fBasMin;
-            while (true)
-            {
-                var vecL = fBasEnd[RL.Left].Pos - fBasEnd.Pos;
-                var vecR = fBasEnd[RL.Right].Pos - fBasEnd.Pos;
-                var angleCW = vecL.AngleCW(vecR);
-                if (angleCW >= Math.PI - float.Epsilon) break;
-                fBasEnd = fBasEnd[_dir];
-            }
-
-            if (fBasEnd.VertIdx == fBasMin.VertIdx || fBasStart[_dir].VertIdx == fBasEnd.VertIdx) return;
-
-            //Sort Basin points by R
-            var basinPts = new Dictionary<int, float> {{fBasEnd.VertIdx, PolPos(fBasEnd.VertIdx).r}};
-            var fBasScan = fBasStart;
-            while (fBasScan.VertIdx != fBasEnd.VertIdx)
-            {
-                basinPts.Add(fBasScan.VertIdx, PolPos(fBasScan.VertIdx).r);
-                fBasScan = fBasScan[_dir];
-            }
-
-            var basinPtsByR = basinPts.OrderBy(_kvp => _kvp.Value).Select(_kvp => _kvp.Key).ToList();
-
-            //Triangluate Basin
-
-            while (basinPtsByR.Count > 2)
-            {
-                var newVerts = new[]
-                {
-                    basinPtsByR[0],
-                    basinPtsByR[1],
-                    basinPtsByR[2]
-                };
-
-
-                //Find frontier point that will be removed
-                var fOut = frontier.GetHaving(newVerts[0]);
-                if (!newVerts.Contains(fOut[RL.Right].VertIdx) || !newVerts.Contains(fOut[RL.Left].VertIdx))
-                    fOut = frontier.GetHaving(newVerts[1]);
-
-                //Check that tri is valid (due to radius from Origin)
-                var vecLt = fOut.Left.Pos - fOut.Pos;
-                var vecRt = fOut.Right.Pos - fOut.Pos;
-                //Check for lines
-                var triAngle = vecLt.AngleCW(vecRt);
-                if (triAngle >= Math.PI - float.Epsilon) break;
-
-                var twinLt = fOut[RL.Left].EdgeRight;
-                var twinRt = fOut.EdgeRight;
-
-                var newTri = D.AddTriToMesh(twinLt, twinRt);
-                if (newTri == null) break;
-                frontier.Remove(fOut, twinLt.Twin.NextEdge);
-
-                D.Legalize(twinLt.Twin, twinRt.Twin);
-                //LegalizeFrontier(changedVerts);
-
-                basinPtsByR.Remove(fOut.VertIdx);
-            }
-        }
-        */
-
-        
         private void Init()
         {
             int[] firstTriIdxs;
             Origin = CalcOrigin(out firstTriIdxs);
-            m_PolPos = D.Points.Select(_pt => new PolartPt(_pt, Origin, this)).ToArray();
+            m_PolPos = new PolartPt[D.Points.Count]; //TODO make this dynamic to save memory?
+            m_VertIdxsByR = new List<int>(D.Points.Count - 3);
+            for (int pIdx = 0; pIdx < D.Points.Count; ++pIdx)
+            {
+                m_PolPos[pIdx] = new PolartPt(D.Points[pIdx], Origin, this);
+                if (firstTriIdxs.Contains(pIdx)) continue;
+                m_VertIdxsByR.Add(pIdx);
+            }
 
-            m_VertIdxsByR = new int[D.Points.Count - 3];
-
+            m_VertIdxsByR.Sort((_a, _b) => m_PolPos[_a].r.CompareTo(m_PolPos[_b].r));
+            
             //Sort Indexes By Distance to Origin
+            /*
             var vertIdxsToSort = new List<int>();
             for (var idx = 0; idx < D.Points.Count; ++idx)
                 vertIdxsToSort.Add(idx);
@@ -516,7 +409,7 @@
             vertIdxsToSort.Remove(firstTriIdxs[2]);
             //Sort CW
             m_VertIdxsByR = vertIdxsToSort.OrderBy(_idx => m_PolPos[_idx].r).ToArray();
-
+*/
             //Init Frontier
             var firstTri = new Delaunay.Triangle(firstTriIdxs[0], firstTriIdxs[1], firstTriIdxs[2], D);
 
@@ -549,7 +442,6 @@
                 frontier.Remove(fvn, twinLt.Twin.NextEdge);
 
                 D.Legalize(twinLt.Twin, twinRt.Twin);
-                //LegalizeFrontier(changedVerts);
             }
         }
 
@@ -557,6 +449,7 @@
 
         #region Nested Types
 
+        
         //TODO PRIVATE?
         public class Frontier : ICircleSweepObj
         {
@@ -652,7 +545,7 @@
 
             #region Nested Types
 
-            public class FrontierPt : ICircleSweepObj
+            public class FrontierPt : FastPriorityQueueNode, ICircleSweepObj
             {
                 #region Fields
 
@@ -663,6 +556,7 @@
                 public Vector2f Pos => CS.D.Points[VertIdx];
                 public FrontierPt Right;
                 public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
+                public FPList.ThetaGroup ParentGroup; //For fast removal
 
                 public float Theta => CS.m_PolPos[VertIdx].Theta;
                 public float r => CS.m_PolPos[VertIdx].r;
@@ -711,7 +605,7 @@
                 #endregion Methods
             }
 
-            private class FPList : ICircleSweepObj
+            public class FPList : ICircleSweepObj
             {
                 #region Fields
 
@@ -822,9 +716,13 @@
 
                 public void Remove(FrontierPt _pt)
                 {
+                    /*
                     var theta = CS.m_PolPos[_pt.VertIdx].Theta;
                     var grp = GetThetaGroup(theta);
                     grp.Remove(_pt);
+                    */
+                    _pt.ParentGroup.Remove(_pt);
+                    _pt.ParentGroup = null;
                     Count--;
                 }
 
@@ -843,9 +741,10 @@
 
                 #region Other
 
-                private class ThetaGroup
+                public class ThetaGroup
                 {
-                    private SortedDictionary<float, SortedList<float, FrontierPt>> m_FptGrp;
+                    
+                    private SortedList<float, SortedList<float, FrontierPt>> m_FptGrp;
                     public ThetaGroup Next;
                     public ThetaGroup Prev;
                     public readonly CircleSweep CS;
@@ -858,7 +757,7 @@
 
                     public ThetaGroup(CircleSweep _cs)
                     {
-                        m_FptGrp = new SortedDictionary<float, SortedList<float, FrontierPt>>();
+                        m_FptGrp = new SortedList<float, SortedList<float, FrontierPt>>();
                         CS = _cs;
                     }
 
@@ -869,6 +768,8 @@
                             m_FptGrp.Add(theta, new SortedList<float, FrontierPt> {{_pt.r, _pt}});
                         else
                             m_FptGrp[theta].Add(_pt.r, _pt);
+
+                        _pt.ParentGroup = this;
 
                         Count++;
                     }
@@ -884,7 +785,7 @@
 
                     public FrontierPt FindFirstLeftMost()
                     {
-                        var firstList = m_FptGrp.Values.First();
+                        var firstList = m_FptGrp.Values[0];
                         foreach (var fPt in firstList.Values)
                         {
                             if (!firstList.Values.Contains(fPt.Left))
@@ -896,7 +797,7 @@
                     
                     public FrontierPt FindNextHigher(float _theta)
                     {
-                        var keys = m_FptGrp.Keys.ToArray();
+                        var keys = m_FptGrp.Keys;
                         var idx = BinarySearch(keys, _theta);
                         if (idx < 0)
                         {

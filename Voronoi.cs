@@ -186,11 +186,11 @@ namespace ioDelaunay
                 Site prevSite = null;
                 int firstSiteBackVertIdx = -1;
                 var infiniteEdgeLen = (m_BoundsRect.width + m_BoundsRect.height) / 4f;
-                for (int idx = 0; idx < D.HullIdxs.Length; ++idx)
+                for (int idx = 0; idx < D.HullIdxs.Count; ++idx)
                 {
-                    var hIdxPrev = D.HullIdxs[idx == 0 ? D.HullIdxs.Length - 1 : idx - 1];
+                    var hIdxPrev = D.HullIdxs[idx == 0 ? D.HullIdxs.Count - 1 : idx - 1];
                     var hIdxCur = D.HullIdxs[idx];
-                    var hIdxNext = D.HullIdxs[idx == D.HullIdxs.Length - 1 ? 0 : idx + 1];
+                    var hIdxNext = D.HullIdxs[idx == D.HullIdxs.Count - 1 ? 0 : idx + 1];
 
                     var centers = GetCenterIdxsAtSite(hIdxCur);
                     
@@ -203,7 +203,7 @@ namespace ioDelaunay
                     var refVec = nbrPerpVec.normalized;
                     var centersCW = SortCW(hIdxCur, centers.ToArray(), refVec).ToList();
                     
-                    if (idx == D.HullIdxs.Length - 1) //Handle last site
+                    if (idx == D.HullIdxs.Count - 1) //Handle last site
                     {
                         centersCW.Insert(0, firstSiteBackVertIdx);
                         centersCW.Add(prevSite.Edge(0).OriginIdx);
@@ -225,7 +225,7 @@ namespace ioDelaunay
                     
                         if (prevSite == null)
                         {
-                            var prevHIdx = D.HullIdxs[D.HullIdxs.Length - 1];
+                            var prevHIdx = D.HullIdxs[D.HullIdxs.Count - 1];
                             hvp0 = D.Points[prevHIdx];
                             hvp1 = D.Points[hIdxCur];
                             hullVec = (hvp1 - hvp0).normalized;
