@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using Vectorf;
@@ -70,10 +69,16 @@ namespace ioDelaunay
             var firstMoveDone = false;
             while (fPt.VertIdx != fpStart.VertIdx || firstMoveDone == false)
             {
-                var x1 = fPt.Pos.x - originOffset.x;
-                var y1 = fPt.Pos.y - originOffset.y;
-                var x2 = fPt.Right.Pos.x - originOffset.x;
-                var y2 = fPt.Right.Pos.y - originOffset.y;
+                var pts = _d.Points;
+                var x1 = pts[fPt.VertIdx].x - originOffset.x;
+                var y1 = pts[fPt.VertIdx].y - originOffset.y;
+                var x2 = pts[fPt.Right.VertIdx].x - originOffset.x;
+                var y2 = pts[fPt.Right.VertIdx].y - originOffset.y;
+                
+                //var x1 = fPt.Pos.x - originOffset.x;
+                //var y1 = fPt.Pos.y - originOffset.y;
+                //var x2 = fPt.Right.Pos.x - originOffset.x;
+                //var y2 = fPt.Right.Pos.y - originOffset.y;
 
                 using (var g = Graphics.FromImage(bitmap))
                 {

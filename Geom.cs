@@ -104,6 +104,44 @@ namespace ioDelaunay
             return true;
         }
         
+        public static bool Circumcircle(Vector2f a, Vector2f b, Vector2f c, 
+            out float _centX, out float _centY, out float radiusSqr)
+        {
+            var A = b.x - a.x;
+            var B = b.y - a.y;
+            var C = c.x - a.x;
+            var D = c.y - a.y;
+            var E = A * (a.x + b.x) + B * (a.y + b.y);
+            var F = C * (a.x + c.x) + D * (a.y + c.y);
+            var G = 2 * (A * (c.y - b.y) - B * (c.x - b.x));
+
+            float minx, miny, dx, dy;
+
+            /* If the points of the triangle are collinear, then just find the
+             * extremes and use the midpoint as the center of the circumcircle. */
+
+            if(Math.Abs(G) < 0.000001)
+            {
+                minx = Min(a.x, b.x, c.x);
+                miny = Min(a.y, b.y, c.y);
+                dx = (Max(a.x, b.x, c.x) - minx) * 0.5f;
+                dy = (Max(a.y, b.y, c.y) - miny) * 0.5f;
+
+                _centX = minx + dx;
+                _centY = miny + dy;
+                radiusSqr = dx * dx + dy * dy;
+            } else {
+                _centX = (D * E - B * F) / G;
+                _centY = (A * F - C * E) / G;
+                dx = _centX - a.x;
+                dy = _centY - a.y;
+
+                radiusSqr = dx * dx + dy * dy;
+            }
+
+            return true;
+        }
+        
         public static bool AreColinear(Vector2f _v0, Vector2f _v1, Vector2f _v2) //TODO Dynamic Epsilon
         {
 
@@ -131,6 +169,27 @@ namespace ioDelaunay
             { // use relative error
                 return diff / (absA + absB) < _epsilon;
             }
+        }
+
+        public static bool IsInPolygon(this Vector2f _point, params Vector2f[] _poly)
+        {
+            //public static bool IsInPolygon(Point[] poly, Point point)
+            //{
+                var coef = _poly.Skip(1).Select((p, i) => 
+                        (_point.y - _poly[i].y)*(p.x - _poly[i].x) 
+                        - (_point.x - _poly[i].x) * (p.y - _poly[i].y))
+                    .ToList();
+
+                if (coef.Any(p => p == 0))
+                    return true;
+
+                for (int i = 1; i < coef.Count(); i++)
+                {
+                    if (coef[i] * coef[i - 1] < 0)
+                        return false;
+                }
+                return true;
+            //}
         }
     }
 }

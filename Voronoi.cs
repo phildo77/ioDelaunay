@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using ioPolygonGraph;
 using Vectorf;
 
@@ -103,8 +100,8 @@ namespace ioDelaunay
                     Vector2f center;
                     tri.CircumCircle(out center, out r);
                     centers.Add(center);
-                    m_CentIdxByTriID.Add(tri.ID, tIdx);
-                    m_TriIDByCentIdx.Add(tIdx, tri.ID);
+                    //m_CentIdxByTriID.Add(tri.ID, tIdx); TODO - TO fix for new tri
+                    //m_TriIDByCentIdx.Add(tIdx, tri.ID); TODO - to fix for new triangle def
                 }
 
                 AddVertices(centers);
