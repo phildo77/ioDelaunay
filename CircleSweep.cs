@@ -1,5 +1,7 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Priority_Queue;
+
 
 namespace ioDelaunay
 {
@@ -74,26 +76,32 @@ namespace ioDelaunay
 
             for (var rIdx = 0; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
+                    
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
                 // 1) Project
-                var thetaHit = PolPos(ofVertIdx).Theta;
-                var fntVerts = frontier.Project(thetaHit);
+                var fntVerts = frontier.Project(m_PolPos[ofVertIdx]);
 
                 // 2) Create Tri and Legalize
-                var tri = D.AddTriToMesh(ofVertIdx, fntVerts[0].EdgeRight);
-                var newFntPt = frontier.Add(fntVerts[0], fntVerts[1]);
+                var tri = new Delaunay.Triangle(fntVerts[0].EdgeRight, ofVertIdx, D);
+                var newFntPt = frontier.Add(m_PolPos[ofVertIdx], fntVerts[0]);
 
                 D.Legalize(newFntPt.EdgeRight.NextEdge);
 
+                
+                
                 // 3) Walk Left
                 Walk(RL.Left, newFntPt);
+                
                 // 4) Walk Right
                 Walk(RL.Right, newFntPt);
+                
                 // 5) Check / Fill Basin Right
                 FillBasin(RL.Right, newFntPt);
+                
                 // 6) Check / Fill Basin Left
                 FillBasin(RL.Left, newFntPt);
+                
             }
 
             // 7) Finalize
@@ -102,7 +110,7 @@ namespace ioDelaunay
         
         protected void FinalizeHull()
         {
-            var fStart = frontier.Project(0)[0];
+            var fStart = frontier.LastAddedFPt;
             var fScan = fStart;
             var firstScanDone = false;
             var maxHullAngle = Settings.ForceConvexHull
@@ -151,9 +159,7 @@ namespace ioDelaunay
 
         protected override void Hull()
         {
-            var fpCnt = frontier.FPntCount;
-            var curCnt = 0;
-            var fScan = frontier.Project(0)[0];
+            var fScan = frontier.LastAddedFPt;
             Frontier.FrontierPt fStart = fScan;
             D.HullIdxs = new List<int>() {fStart.VertIdx};
             fScan = fScan.Right;
@@ -339,10 +345,10 @@ namespace ioDelaunay
             }
         }
 
-        /*
+        
         private void DebugCheckFrontier()
         {
-            var proj = frontier.Project(0);
+            var proj = frontier.ProjectZero();
             var fPt = proj[1];
             var firstfPt = fPt;
             fPt = fPt.Right;
@@ -365,31 +371,52 @@ namespace ioDelaunay
             }
             
         }
-*/
+
         private void Init()
         {
             int[] firstTriIdxs;
             Origin = CalcOrigin(out firstTriIdxs);
-            m_PolPos = new PolartPt[D.Points.Count]; //TODO make this dynamic to save memory?
-            m_VertIdxsByR = new int[D.Points.Count - 3];
+            var ptCnt = D.Points.Count;
+            List<float> thetaKeys; 
+            var thetaGroups = Frontier.ThetaGroup.BuildThetaGroups(ptCnt, out thetaKeys);
+            m_PolPos = new PolartPt[ptCnt]; //TODO make this dynamic to save memory?
+            m_VertIdxsByR = new int[ptCnt - 3];
             var idxOffset = 0;
             for (int pIdx = 0; pIdx < D.Points.Count; ++pIdx)
             {
-                m_PolPos[pIdx] = new PolartPt(D.Points[pIdx], Origin, this);
+                //Store polar position
+                var polPos = new PolartPt(D.Points[pIdx], Origin, this);
+                m_PolPos[pIdx] = polPos;
+                
+                //Reference theta group
+                var grpIdx = BinarySearch(thetaKeys, polPos.Theta);
+                if (grpIdx < 0)
+                {
+                    grpIdx = ~grpIdx;
+                    if (grpIdx == thetaGroups.Count)
+                        grpIdx = 0;
+                }
+
+                polPos.thetaGroup = thetaGroups[thetaKeys[grpIdx]];
+                
+                //Prepare r index reference (to be sorted later)
                 if (firstTriIdxs.Contains(pIdx))
                 {
                     idxOffset++;
                     continue;
                 }
                 m_VertIdxsByR[pIdx - idxOffset] = pIdx;
+                
+                
             }
 
+            //Sort points by distance to origin
             Array.Sort(m_VertIdxsByR, (_a, _b) => m_PolPos[_a].r.CompareTo(m_PolPos[_b].r));
             
             //Init Frontier
             var firstTri = new Delaunay.Triangle(firstTriIdxs[0], firstTriIdxs[1], firstTriIdxs[2], D);
 
-            frontier = new Frontier(firstTri, this);
+            frontier = new Frontier(firstTri, thetaGroups, this);
         }
 
         private PolartPt PolPos(int _vertIdx)
@@ -401,7 +428,6 @@ namespace ioDelaunay
         {
             var fvi = _fPt;
             var pts = D.Points;
-
             while (true)
             {
                 var fvn = fvi[_dir];
@@ -412,13 +438,15 @@ namespace ioDelaunay
 
                 var vecL = pts[fLt.VertIdx] - fvnPos;
                 var vecR = pts[fRt.VertIdx] - fvnPos;
+                //var angleCW = vecL.AngleCW(vecR);
+                //if (angleCW > Math.PI / 2f) break;
+                //Cross Product greater than 180
+                var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
+                if (crossZ > 0) break;
+                //If dot product is greater than zero ( < 90 degrees )
+                var dot = (vecL.x * vecR.x + vecL.y * vecR.y);
+                if (dot < 0) break;
                 
-                //var vecL = fvn[RL.Left].Pos - fvn.Pos;
-                //var vecR = fvn[RL.Right].Pos - fvn.Pos;
-
-                var angleCW = vecL.AngleCW(vecR);
-                if (angleCW > Math.PI / 2f) break;
-
                 var twinLt = fLt.EdgeRight;
                 var twinRt = fvn.EdgeRight;
                 var newTri = D.AddTriToMesh(twinLt, twinRt);
@@ -434,8 +462,483 @@ namespace ioDelaunay
 
         #region Nested Types
 
+        public class FrontierDynamic
+        {
+            public class ThetaGroup
+            {
+                public const int MAX_CHILD_COUNT = 10;
+                public Dictionary<int, ThetaGroup> Children;
+                public FrontierPt First;
+                public float ThetaStart;
+                public float ThetaRangeInv;
+                public int FPCount = 0;
+
+                public int GetKey(float _theta)
+                {
+                    return (int) ((_theta - ThetaStart) * MAX_CHILD_COUNT * ThetaRangeInv);
+                }
+
+                public void Add(FrontierPt _newPt, FrontierPt _fPtRt)
+                {
+                    if (Children != null)
+                    {
+                        var key = GetKey(_newPt.Theta);
+                        Children[key].Add(_newPt, _fPtRt);
+                    }
+                    else if (++FPCount >= MAX_CHILD_COUNT)
+                    {
+                        Children = new Dictionary<int, ThetaGroup>();
+                        var thetaStart = ThetaStart;
+                        var incr = 1 / (ThetaRangeInv * MAX_CHILD_COUNT);
+                        for (int idx = 0; idx < MAX_CHILD_COUNT; ++idx)
+                        {
+                            Children.Add(idx, new ThetaGroup(thetaStart, idx * incr));
+                        }
+
+                        Children[GetKey(_newPt.Theta)].Add(_newPt, _fPtRt);
+                    }
+                    else
+                    {
+                        _newPt.Left = _fPtRt.Left;
+                        _newPt.Right = _fPtRt;
+                        _fPtRt.Left.Right = _newPt;
+                        _fPtRt.Left = _newPt;
+                        if (First.Theta >= _newPt.Theta)
+                            if (_newPt.Left != First)
+                                First = _newPt;
+                    }
+                }
+
+                public FrontierPt[] Project(float _theta)
+                {
+                    if (Children != null)
+                    {
+                        return Children[GetKey(_theta)].Project(_theta);
+                    }
+
+                    var fScan = First;
+                    while (fScan.Theta > _theta)
+                        fScan = fScan.Right;
+                    return new[] {fScan.Left, fScan};
+                }
+
+                public void Remove(FrontierPt _pt)
+                {
+                    if (Children != null)
+                    {
+                        Children[GetKey(_pt.Theta)].Remove(_pt);
+                    }
+                    else
+                    {
+                        var fScan = First;
+                        while (fScan.VertIdx != _pt.VertIdx)
+                            fScan = fScan.Right;
+                        fScan.Right.Left = fScan.Left;
+                        fScan.Left.Right = fScan.Right;
+                        FPCount--;
+                    }
+                }
+
+                public ThetaGroup(float _thetaStart, float _thetaRange)
+                {
+                    ThetaStart = _thetaStart;
+                    ThetaRangeInv = 1 / _thetaRange;
+                    
+                }
+            }
+            
+            public class FrontierPt : FastPriorityQueueNode, ICircleSweepObj
+            {
+                #region Fields
+
+                public int VertIdx => EdgeRight.OriginIdx;
+
+                public Delaunay.Triangle.HalfEdge EdgeRight;
+                public FrontierPt Left;
+                public FrontierPt Right;
+                public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
+
+                public float Theta => CS.m_PolPos[VertIdx].Theta;
+                public float r => CS.m_PolPos[VertIdx].r;
+
+                #endregion Fields
+
+                #region Constructors
+
+                public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
+                {
+                    EdgeRight = _edge;
+                    CS = _cs;
+                }
+
+                #endregion Constructors
+
+                #region Properties
+
+                public CircleSweep CS
+                {
+                    get;
+                }
+
+                public int EdgeRightIdx
+                {
+                    get; private set;
+                }
+
+                #endregion Properties
+
+                #region Methods
+
+                public void Dispose()
+                {
+                    Left = null;
+                    Right = null;
+                }
+
+                public override string ToString()
+                {
+                    var er = (EdgeRight ?? (object) "").ToString();
+                    return "Fnt Pt v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " + Left.VertIdx + " EdgeRt: " + er;
+                }
+
+                #endregion Methods
+            }
+
+        }
+        
+        public class Frontier : ICircleSweepObj
+        {
+            #region Fields
+
+            private Dictionary<float, ThetaGroup> m_ThetaGroups;
+
+            public FrontierPt LastAddedFPt;
+
+            #endregion Fields
+
+            #region Constructors
+
+            public Frontier(Delaunay.Triangle _firstTri, Dictionary<float, ThetaGroup> _tgs, CircleSweep _cs)
+            {
+                CS = _cs;
+
+                var ftPts = new List<FrontierPt>
+                {
+                    new FrontierPt(_firstTri.Edge0, CS),
+                    new FrontierPt(_firstTri.Edge1, CS),
+                    new FrontierPt(_firstTri.Edge2, CS)
+                };
+
+
+                ftPts[0].Right = ftPts[1];
+                ftPts[0].Left = ftPts[2];
+                ftPts[1].Right = ftPts[2];
+                ftPts[1].Left = ftPts[0];
+                ftPts[2].Right = ftPts[0];
+                ftPts[2].Left = ftPts[1];
+
+                m_ThetaGroups = _tgs;
+
+                CS.m_PolPos[ftPts[0].VertIdx].thetaGroup.Add(ftPts[0]);
+                CS.m_PolPos[ftPts[1].VertIdx].thetaGroup.Add(ftPts[1]);
+                CS.m_PolPos[ftPts[2].VertIdx].thetaGroup.Add(ftPts[2]);
+                
+            }
+
+            #endregion Constructors
+
+            #region Properties
+
+            public CircleSweep CS
+            {
+                get;
+            }
+
+            #endregion Properties
+
+            #region Methods
+
+            public FrontierPt Add(PolartPt _pt, FrontierPt _fLt)
+            {
+                var fRt = _fLt.Right;
+                var newEdgeLt = _fLt.EdgeRight.m_Twin.NextEdge;
+                var newEdgeRt = newEdgeLt.NextEdge;
+                var fNew = new FrontierPt(newEdgeRt, CS);
+
+                
+                
+                _fLt.Right = fRt.Left = fNew;
+                _fLt.EdgeRight = newEdgeLt;
+
+                fNew.Left = _fLt;
+                fNew.Right = fRt;
+
+                _pt.thetaGroup.Add(fNew);
+                
+                LastAddedFPt = fNew;
+                return fNew;
+            }
+
+            public FrontierPt FindNextHigherAtZero() //DEBUG TODO 
+            {
+                var grp = CS.m_PolPos[0].thetaGroup;
+
+                while (grp.First == null)
+                    grp = grp.Next;
+                
+                var scan = grp.First;
+
+                while ((scan.Theta - scan.Left.Theta >= 0))
+                    scan = scan.Right;
+                return scan;
+            }
+            
+            public FrontierPt FindNextHigher(PolartPt _pt)
+            {
+                var grp = _pt.thetaGroup;
+                var theta = _pt.Theta;
+                if (grp.First == null)
+                {
+                    var scan = grp.Next;
+                    while (scan.First == null)
+                        scan = scan.Next;
+                    return scan.First;
+                }
+
+                if (grp.Next.First == null)
+                {
+                    var scan = grp.First;
+                    while (scan.Theta < theta && scan != grp.Last.Right)
+                        scan = scan.Right;
+                    return scan;
+                }
+               
+                if (theta < grp.Mid)
+                {
+                    var scan = grp.First;
+                    while (scan.Theta < theta && scan != grp.Next.First)
+                        scan = scan.Right;
+                    return scan;
+                }
+                else
+                {
+                    var scan = grp.Next.First.Left;
+                    while (scan.Theta > theta && scan != grp.First.Left)
+                        scan = scan.Left;
+                    return scan.Right;
+                }
+            }
+
+            public FrontierPt[] Project(PolartPt _pPt)
+            {
+                var fRt = FindNextHigher(_pPt);
+                return new[] {fRt.Left, fRt};
+            }
+
+            public FrontierPt[] ProjectZero() //TODO DEBUG
+            {
+                var fRt = FindNextHigherAtZero();
+                return new[] {fRt.Left, fRt};
+
+            }
+
+            public void Remove(FrontierPt _fPt, Delaunay.Triangle.HalfEdge _newEdgeRight)
+            {
+                var fpLeft = _fPt.Left;
+                var fpRight = _fPt.Right;
+                fpLeft.Right = fpRight;
+                fpRight.Left = fpLeft;
+
+                fpLeft.EdgeRight = _newEdgeRight;
+                CS.m_PolPos[_fPt.VertIdx].thetaGroup.Remove(_fPt);
+            }
+
+            #endregion Methods
+
+            #region Nested Types
+
+            public class ThetaGroup
+            {
+
+                public float Min => First.Theta; //TODO dynamic math or static span?
+                public float Mid => Min + (Max - Min) / 2;
+                public float Max => Next.First.Left.Theta;
+                public FrontierPt First;
+
+                public FrontierPt Last //TODO SLOW
+                {
+                    get
+                    {
+                        if (First == null) return null;
+                        if (Next.First != null)
+                            return Next.First.Left;
+                        if (Count == 1) return First;
+                        var grpScan = Next;
+                        while (grpScan.First == null)
+                            grpScan = grpScan.Next;
+                        return grpScan.First.Left;
+                    }
+                }
+
+                public ThetaGroup Next;
+                public int Count { get; private set; }
+
+
+                /// <summary>
+                /// We'll need the theta groups built for init before the frontier is constructed.
+                /// </summary>
+                /// <param name="_pntCount"></param>
+                /// <returns></returns>
+                public static Dictionary<float, ThetaGroup> BuildThetaGroups(int _pntCount, out List<float> _keys)
+                {
+                    
+                    //Init theta groups
+                    var k = 1 + (int) Math.Pow(_pntCount, 1f / 3f);
+                    float incr = (float)(2d * Math.PI / k);
+                    var curIncr = incr;
+                    //var prevTg = new ThetaGroup(0, incr);
+                    _keys = new List<float>() {0f};
+                    var prevTg = new ThetaGroup();
+                    var thetaGroups = new Dictionary<float, ThetaGroup>(k)
+                    {
+                        {0, prevTg}
+                    };
+                    for (int grpIdx = 1; grpIdx < k - 1; ++grpIdx)
+                    {
+                        _keys.Add(curIncr);
+                        var nextIncr = curIncr + incr;
+                        
+                        //var tg = new ThetaGroup(curIncr, nextIncr);
+                        var tg = new ThetaGroup();
+                        thetaGroups.Add(curIncr, tg);
+                        prevTg.Next = tg;
+                        //tg.Prev = prevTg;
+                        prevTg = tg;
+                        curIncr = nextIncr;
+                    }
+
+                    curIncr -= incr;
+                    thetaGroups[curIncr].Next = thetaGroups[0];
+                    //thetaGroups[0].Prev = thetaGroups[curIncr];
+
+                    return thetaGroups;
+                }
+                
+                public ThetaGroup() {}
+                
+                /*
+                public ThetaGroup(float _min, float _max)
+                {
+                    Min = _min;
+                    Max = _max;
+                    Mid = Min + (Max - Min) / 2f;
+                }
+                */
+
+                public void Add(FrontierPt _pt)
+                {
+                    if (First == null)
+                    {
+                        First = _pt;
+                        Count++;
+                        return;
+                    }
+
+                    var newTheta = _pt.Theta;
+                    var firstTheta = First.Theta;
+                    if (firstTheta > newTheta)
+                    {
+                        First = _pt;
+                    }
+                    else if (_pt.Right == First)
+                    {
+                        First = _pt;
+                    }
+
+                    Count++;
+                }
+
+                
+
+                public void Remove(FrontierPt _pt)
+                {
+                    if (_pt == First)
+                    {
+                        First = Count == 1 ? null : First.Right;
+                    }
+
+                    Count--;
+
+                }
+            }
+            
+            public class FrontierPt : FastPriorityQueueNode, ICircleSweepObj
+            {
+                #region Fields
+
+                public int VertIdx => EdgeRight.OriginIdx;
+
+                public Delaunay.Triangle.HalfEdge EdgeRight;
+                public FrontierPt Left;
+                public FrontierPt Right;
+                public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
+
+                public float Theta => CS.m_PolPos[VertIdx].Theta;
+                public float r => CS.m_PolPos[VertIdx].r;
+                public PolartPt PolPos => CS.m_PolPos[VertIdx];
+
+                #endregion Fields
+
+                #region Constructors
+
+                public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
+                {
+                    EdgeRight = _edge;
+                    CS = _cs;
+                }
+
+                #endregion Constructors
+
+                #region Properties
+
+                public CircleSweep CS
+                {
+                    get;
+                }
+
+                public int EdgeRightIdx
+                {
+                    get; private set;
+                }
+
+                #endregion Properties
+
+                #region Methods
+
+                public void Dispose()
+                {
+                    Left = null;
+                    Right = null;
+                }
+
+                public override string ToString()
+                {
+                    var er = (EdgeRight ?? (object) "").ToString();
+                    return "Fnt Pt t: " + Theta + " v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " + Left.VertIdx + " EdgeRt: " + er;
+                }
+
+                #endregion Methods
+            }
+
+            
+
+            
+
+            #endregion Nested Types
+        }
         
         //TODO PRIVATE?
+        /*
         public class Frontier : ICircleSweepObj
         {
             #region Fields
@@ -444,15 +947,16 @@ namespace ioDelaunay
 
 
             private readonly FPList m_FPList;
+            public FrontierPt LastAddedFPt;
 
             #endregion Fields
 
             #region Constructors
 
-            public Frontier(Delaunay.Triangle _firstTri, CircleSweep _cs)
+            public Frontier(Delaunay.Triangle _firstTri, SortedList<float, FPList.ThetaGroup> _tgs, CircleSweep _cs)
             {
                 CS = _cs;
-                m_FPList = new FPList(_cs);
+                m_FPList = new FPList(_cs, _tgs);
 
                 var ftPts = new List<FrontierPt>();
 
@@ -499,13 +1003,14 @@ namespace ioDelaunay
                 fNew.Right = _fRt;
 
                 m_FPList.Add(fNew); //TODO add epsilon offset for dupe?
+                LastAddedFPt = fNew;
                 return fNew;
             }
 
 
-            public FrontierPt[] Project(float _theta)
+            public FrontierPt[] Project(PolartPt _pPt)
             {
-                return m_FPList.Project(_theta);
+                return m_FPList.Project(_pPt);
             }
 
             public void Remove(FrontierPt _fPt, Delaunay.Triangle.HalfEdge _newEdgeRight)
@@ -533,8 +1038,6 @@ namespace ioDelaunay
                 public FrontierPt Left;
                 public FrontierPt Right;
                 public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
-                public FPList.ThetaGroup ParentGroup; //For fast removal
-                public SortedList<float, SortedList<float, FrontierPt>> ParentList; // For fast removal
 
                 public float Theta => CS.m_PolPos[VertIdx].Theta;
                 public float r => CS.m_PolPos[VertIdx].r;
@@ -592,23 +1095,24 @@ namespace ioDelaunay
 
                 #region Constructors
 
-                public FPList(CircleSweep _cs)
+                /// <summary>
+                /// We'll need the theta groups built for init before the frontier is constructed.
+                /// </summary>
+                /// <param name="_pntCount"></param>
+                /// <returns></returns>
+                public static SortedList<float, ThetaGroup> BuildThetaGroups(int _pntCount)
                 {
-                    CS = _cs;
-                    Count = 0;
-                    
                     //Init theta groups
-                    var k = 1 + (int) Math.Pow(_cs.D.Points.Count, 1f / 3f);
-                    var prevTg = new ThetaGroup(_cs);
+                    var k = 1 + (int) Math.Pow(_pntCount, 1f / 3f);
+                    var prevTg = new ThetaGroup();
                     var tgList = new SortedList<float, ThetaGroup>(k)
                     {
                         {0, prevTg}
                     };
                     for (int grpIdx = 1; grpIdx < k - 1; ++grpIdx)
                     {
-                        var tg = new ThetaGroup(_cs);
+                        var tg = new ThetaGroup();
                         var theta = 2f * (float) Math.PI * grpIdx / k;
-                        tg.DebugTheta = theta;
                         tgList.Add(theta, tg);
                         prevTg.Next = tg;
                         tg.Prev = prevTg;
@@ -618,7 +1122,14 @@ namespace ioDelaunay
                     tgList.Values[tgList.Count - 1].Next = tgList.Values[0];
                     tgList.Values[0].Prev = tgList.Values[tgList.Count - 1];
 
-                    m_ThetaGroups = tgList;
+                    return tgList;
+                }
+                
+                public FPList(CircleSweep _cs, SortedList<float, ThetaGroup> _thetaGroups)
+                {
+                    CS = _cs;
+                    Count = 0;
+                    m_ThetaGroups = _thetaGroups;
                 }
 
                 #endregion Constructors
@@ -641,15 +1152,13 @@ namespace ioDelaunay
 
                 public void Add(FrontierPt _pt)
                 {
-                    var polPos = CS.m_PolPos[_pt.VertIdx];
-                    var grp = GetThetaGroup(polPos.Theta);
-                    grp.Add(_pt);
+                    CS.m_PolPos[_pt.VertIdx].thetaGroup.Add(_pt);
                     Count++;
                 }
 
-                public FrontierPt[] Project(float _theta)
+                public FrontierPt[] Project(PolartPt _ppt)
                 {
-                    var grp = GetThetaGroup(_theta);
+                    var grp = _ppt.thetaGroup;
                     FrontierPt[] fLtRt;
                     if (grp.Count == 0)
                     {
@@ -660,9 +1169,13 @@ namespace ioDelaunay
                     }
                     else
                     {
-                        var fPtRt = grp.FindNextHigher(_theta);
+                        var fPtRt = grp.FindNextHigher(_ppt.Theta);
                         if (fPtRt != null)
                             return new[] {fPtRt.Left, fPtRt};
+
+                        var fPtLt = grp.FindLastRightMost();
+                        return new[] {fPtLt, fPtLt.Right};
+                        //TODO
                         grp = grp.Next;
                         while (grp.Count == 0)
                             grp = grp.Next;
@@ -675,20 +1188,8 @@ namespace ioDelaunay
 
                 public void Remove(FrontierPt _pt)
                 {
-                    _pt.ParentGroup.Remove(_pt);
-                    _pt.ParentGroup = null;
+                    _pt.CS.m_PolPos[_pt.VertIdx].thetaGroup.Remove(_pt);
                     Count--;
-                }
-
-                private ThetaGroup GetThetaGroup(float _theta)
-                {
-                    var grpIdx = BinarySearch(m_ThetaGroups.Keys, _theta);
-                    if (grpIdx >= 0) return m_ThetaGroups.Values[grpIdx];
-                    grpIdx = ~grpIdx;
-                    if (grpIdx == m_ThetaGroups.Count)
-                        grpIdx = 0;
-                    return m_ThetaGroups.Values[grpIdx].Prev;
-
                 }
 
                 #endregion Methods
@@ -700,24 +1201,21 @@ namespace ioDelaunay
                     
                     private SortedList<float, SortedList<float, FrontierPt>> m_FptGrp;
                     public ThetaGroup Next;
-                    public ThetaGroup Prev;
-                    public readonly CircleSweep CS;
-                    public float DebugTheta;
+                    public ThetaGroup Prev; //TODO keep?
 
                     public int Count
                     {
                         get; private set;
                     }
 
-                    public ThetaGroup(CircleSweep _cs)
+                    public ThetaGroup()
                     {
                         m_FptGrp = new SortedList<float, SortedList<float, FrontierPt>>();
-                        CS = _cs;
                     }
 
                     public void Add(FrontierPt _pt)
                     {
-                        var theta = CS.m_PolPos[_pt.VertIdx].Theta;
+                        var theta = _pt.CS.m_PolPos[_pt.VertIdx].Theta;
                         if (!m_FptGrp.ContainsKey(theta))
                         {
                             m_FptGrp.Add(theta, new SortedList<float, FrontierPt> {{_pt.r, _pt}});
@@ -725,13 +1223,12 @@ namespace ioDelaunay
                         else
                             m_FptGrp[theta].Add(_pt.r, _pt);
 
-                        _pt.ParentGroup = this;
                         Count++;
                     }
 
                     public void Remove(FrontierPt _pt)
                     {
-                        var theta = CS.m_PolPos[_pt.VertIdx].Theta;
+                        var theta = _pt.CS.m_PolPos[_pt.VertIdx].Theta;
                         var grp = m_FptGrp[theta];
                         grp.Remove(_pt.r);
                         if (grp.Count == 0)
@@ -742,9 +1239,23 @@ namespace ioDelaunay
                     public FrontierPt FindFirstLeftMost()
                     {
                         var firstList = m_FptGrp.Values[0];
-                        foreach (var fPt in firstList.Values)
+                        for (var fGrpIdx = 0; fGrpIdx < firstList.Values.Count; fGrpIdx++)
                         {
+                            var fPt = firstList.Values[fGrpIdx];
                             if (!firstList.Values.Contains(fPt.Left))
+                                return fPt;
+                        }
+
+                        return null;
+                    }
+
+                    public FrontierPt FindLastRightMost()
+                    {
+                        var lastList = m_FptGrp.Values[m_FptGrp.Count - 1];
+                        for (var fGrpIdx = 0; fGrpIdx < lastList.Values.Count; fGrpIdx++)
+                        {
+                            var fPt = lastList.Values[fGrpIdx];
+                            if (!lastList.Values.Contains(fPt.Right))
                                 return fPt;
                         }
 
@@ -762,10 +1273,11 @@ namespace ioDelaunay
                                 return null;
                         }
 
-                        var fPtList = m_FptGrp[keys[idx]];
-                        foreach (var fPt in fPtList.Values)
+                        var fPtList = m_FptGrp.Values[idx].Values;
+                        for (var index = 0; index < fPtList.Count; index++)
                         {
-                            if (!fPtList.Values.Contains(fPt.Left))
+                            var fPt = fPtList[index];
+                            if (!fPtList.Contains(fPt.Left))
                                 return fPt;
                         }
 
@@ -867,13 +1379,14 @@ namespace ioDelaunay
 
             #endregion Nested Types
         }
-
+*/
         public class PolartPt : ICircleSweepObj
         {
             #region Fields
 
             public readonly float r;
             public readonly float Theta;
+            public Frontier.ThetaGroup thetaGroup;
 
             #endregion Fields
 
@@ -936,6 +1449,6 @@ namespace ioDelaunay
         #endregion Nested Types
     }
 
-
+    
     
 }

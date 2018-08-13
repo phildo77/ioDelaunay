@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Vectorf;
 
 namespace ioDelaunay
@@ -104,6 +105,7 @@ namespace ioDelaunay
             return true;
         }
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Circumcircle(Vector2f a, Vector2f b, Vector2f c, 
             out float _centX, out float _centY, out float radiusSqr)
         {
@@ -190,6 +192,33 @@ namespace ioDelaunay
                 }
                 return true;
             //}
+        }
+
+        public static float ToDeg(float _radians)
+        {
+            return _radians * 180f / (float) Math.PI;
+        }
+
+        public static bool NearlyEqual(this float a, float b, float epsilon)
+        {
+            float absA = Math.Abs(a);
+            float absB = Math.Abs(b);
+            float diff = Math.Abs(a - b);
+
+            if (a == b)
+            { // shortcut, handles infinities
+                return true;
+            } 
+            else if (a == 0 || b == 0) 
+            {
+                // a or b is zero or both are extremely close to it
+                // relative error is less meaningful here
+                return diff < epsilon;
+            }
+            else
+            { // use relative error
+                return diff / (absA + absB) < epsilon;
+            }
         }
     }
 }

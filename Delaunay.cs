@@ -2,18 +2,22 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 using ioPolygonGraph;
 using Vectorf;
 
 namespace ioDelaunay
 {
-    public partial class Delaunay : PolygonGraph
+    public partial class Delaunay 
     {
         public List<int> HullIdxs;
+        public List<Vector2f> Points;
+        public List<Triangle> Triangles;
+        public Rectf BoundsRect;
        
         private Triangulator m_Triangulator;
 
-        public static Delaunay Create<T>(Vector2f[] _points) where T : Triangulator, new()
+        public static Delaunay Create<T>(List<Vector2f> _points) where T : Triangulator, new()
         {
             var del = new Delaunay(_points);
             del.m_Triangulator = new T();
@@ -21,42 +25,71 @@ namespace ioDelaunay
             return del;
         }
 
-        private Delaunay(Vector2f[] _points) : base(_points)
+        private Delaunay(List<Vector2f> _points)
         {
+            Points = _points;
+            Triangles = new List<Triangle>();
+            Random rnd = new Random(_points.Count);
+            while (r11 == 0)
+                r11 = (float) rnd.NextDouble();
+            while (r12 == 0)
+                r12 = (float) rnd.NextDouble();
+            while (r21 == 0)
+                r21 = (float) rnd.NextDouble();
+            while (r22 == 0)
+                r22 = (float) rnd.NextDouble();
+            
+            for(int pIdx = 0; pIdx < Points.Count; ++pIdx)
+                BoundsRect.Encapsulate(Points[pIdx]);
+            var w = BoundsRect.width;
+            var h = BoundsRect.height;
+            var tmp = (float) Math.Sqrt(Points.Count);
+            n = (float) (Math.Sqrt(w * w + h * h) / 1000f) / tmp;  //TODO research best choice for n
+            m_MinError = 0.00001f; //TODO
+
         }
         
         public void ReTriangulate(IEnumerable<Vector2f> _points)
         {
             Points.Clear();
-            m_Polys.Clear();
-            m_BoundsRect = Rectf.zero;
+            Triangles.Clear();
+            BoundsRect = Rectf.zero;
 
             AddVertices(_points);
 
             Triangulate();
+        }
+        
+        public void AddVertex(Vector2f _vertex)
+        {
+            Points.Add(_vertex);
+            //m_PolysContainingVert.Add(new HashSet<Guid>());
+            if(BoundsRect == Rectf.zero)
+                BoundsRect = new Rectf(_vertex, Vector2f.zero);
+            BoundsRect.Encapsulate(_vertex);
+        }
+
+        public void AddVertices(IEnumerable<Vector2f> _vertices)
+        {
+            foreach (var vert in _vertices)
+                AddVertex(vert);
+
         }
 
         public Mesh Mesh
         {
             get
             {
-                var tris = m_Polys.ToArray();
-                var triIdxs = new int[m_Polys.Count * 3];
-                for (var tIdx = 0; tIdx < tris.Length; ++tIdx)
+                var triIdxs = new int[Triangles.Count * 3];
+                for (var tIdx = 0; tIdx < Triangles.Count; ++tIdx)
                 for (var vIdx = 0; vIdx < 3; ++vIdx)
-                    triIdxs[tIdx * 3 + vIdx] = tris[tIdx].Edge(vIdx).OriginIdx;
+                    triIdxs[tIdx * 3 + vIdx] = Triangles[tIdx].Edge(vIdx).OriginIdx;
                 return new Mesh(Points.ToArray(), triIdxs);
             }
         }
 
         public Triangulator triangulator => m_Triangulator;
-
-        public Triangle[] Triangles => m_Polys.Cast<Triangle>().ToArray();
-        
-        public Triangle AddTriToMesh(int _vertIdx, Triangle.HalfEdge _joiningEdge)
-        {
-            return new Triangle(_joiningEdge, _vertIdx, this);
-        }
+       
 
         
         public Triangle AddTriToMesh(Triangle.HalfEdge _twinLt, Triangle.HalfEdge _twinRt)
@@ -92,12 +125,7 @@ namespace ioDelaunay
             return true;
         }
 
-        public interface IDelaunayObj
-        {
-            Delaunay D { get; }
-        }
-
-        public class Triangle : IDelaunayObj
+        public class Triangle
         {
             public HalfEdge Edge0;
             public HalfEdge Edge1;
@@ -123,9 +151,9 @@ namespace ioDelaunay
                 var v1 = _twinRt.NextEdge.OriginIdx;
                 var v2 = _twinRt.OriginIdx;
 
-                Edge0 = new HalfEdge(this, v0, D);
-                Edge1 = new HalfEdge(this, v1, D);
-                Edge2 = new HalfEdge(this, v2, D);
+                Edge0 = new HalfEdge(this, v0, _d);
+                Edge1 = new HalfEdge(this, v1, _d);
+                Edge2 = new HalfEdge(this, v2, _d);
                 
                 //Edges = new[] { edge0, edge1, edge2 };
 
@@ -133,13 +161,18 @@ namespace ioDelaunay
                 Edge1.NextEdge = Edge2;
                 Edge2.NextEdge = Edge0;
 
-                Edge1.SetTwin(_twinRt);
-                Edge2.SetTwin(_twinLt);
+                Edge1.m_Twin = _twinRt;
+                _twinRt.m_Twin = Edge1;
 
-                var pts = D.Points;
+                Edge2.m_Twin = _twinLt;
+                _twinLt.m_Twin = Edge2;
+
+                var pts = _d.Points;
 
                 Geom.Circumcircle(pts[v0], pts[v1], pts[v2], out CCX, out CCY, out CCRSq);
 
+                
+                _d.Triangles.Add(this);
                 //Check for dupe verts - DEBUG TODO - Remove for optimization
                 //if (v0 == v1 || v0 == v2 || v1 == v2)
                 //    throw new Exception("new Triangle - Dupe Verts");
@@ -163,12 +196,15 @@ namespace ioDelaunay
                 
                 //Edges = new[] { edge0, edge1, edge2 };
 
-                Edge2.SetTwin(_twin);
+                Edge2.m_Twin = _twin;
+                _twin.m_Twin = Edge2;
                 
                 var pts = D.Points;
 
                 Geom.Circumcircle(pts[v0], pts[v1], pts[v2], out CCX, out CCY, out CCRSq);
                 
+                _d.Triangles.Add(this);
+
                 //Check for dupe verts - DEBUG TODO - Remove for optimization
                 //if (v0 == v1 || v0 == v2 || v1 == v2)
                 //    throw new Exception("new Triangle - Dupe Verts");
@@ -194,11 +230,13 @@ namespace ioDelaunay
 
                 Geom.Circumcircle(pts[_v0], pts[_v1], pts[_v2], out CCX, out CCY, out CCRSq);
                 
+                
+                _d.Triangles.Add(this);
                 //Edges = new[] { edge0, edge1, edge2 };
                 
             }
 
-            public Delaunay D { get; }
+            public Delaunay D;
 
             /// <summary>
             /// Calculate center and radius of circumcircle of this triangle.
@@ -210,12 +248,14 @@ namespace ioDelaunay
                 Geom.Circumcircle(Edge0.OriginPos, Edge1.OriginPos, Edge2.OriginPos, out _center, out _rSqr);
             }
             
-            public class HalfEdge : IDelaunayObj
+            public class HalfEdge
             {
                 public int OriginIdx;
                 public Vector2f OriginPos => D.Points[OriginIdx];
                 public Triangle Triangle;
                 public HalfEdge NextEdge;
+
+                public Delaunay D;
 
                 public Vector2f AsVector
                 {
@@ -233,7 +273,7 @@ namespace ioDelaunay
                     OriginIdx = _originIdx;
                 }
 
-                public HalfEdge m_Twin;
+                public HalfEdge m_Twin; //TODO
 
                 public void SetTwin(HalfEdge _twin)
                 {
@@ -244,8 +284,6 @@ namespace ioDelaunay
                     if(newTwin != null)
                         newTwin.m_Twin = this;
                 }
-                
-                public Delaunay D { get; }
             }
 
         }
@@ -295,6 +333,13 @@ namespace ioDelaunay
     
     public static class Ext
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float AngleCW(this Vector2f _from, Vector2f _to)
+        {
+            var signedAngleRad =  Math.Atan2(_to.y, _to.x) - Math.Atan2(_from.y, _from.x);
+            return signedAngleRad >= 0 ?  (float)((2d * Math.PI) - signedAngleRad) : (float)(-signedAngleRad);
+        }
+
         public static bool IsDelaunay(this Delaunay.Triangle.HalfEdge _edge)
         {
             var pts = _edge.D.Points;

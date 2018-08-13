@@ -2,13 +2,16 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
+using System.Linq;
+using System.Text;
 using Vectorf;
 
 namespace ioDelaunay
 {
     public static class DebugVisualizer
     {
-        public static int fontSize = 6;
+        public static int fontSize = 5;
         public static bool showVertIdxs = true;
         private static readonly Color m_ColorMesh = Color.White;
         private static readonly Color m_ColorFront = Color.Red;
@@ -17,11 +20,132 @@ namespace ioDelaunay
         private static readonly Color m_ColorVor = Color.DodgerBlue;
         public static bool Enabled = false;
         public static Vector2f OriginOffsetOverride = Vector2f.positiveInfinity;
+        public static Random rnd = new Random((int)DateTime.Now.Ticks);
+
+        private static HashSet<Delaunay.Triangle> RecGetTris(Delaunay.Triangle.HalfEdge _edge, int _depth)
+        {
+            var tris = new HashSet<Delaunay.Triangle> {_edge.Triangle};
+            if (_depth - 1 == 0)
+                return tris;
+            
+            if (_edge.NextEdge.m_Twin != null)
+                tris.UnionWith(RecGetTris(_edge.NextEdge.m_Twin, _depth - 1));
+            if(_edge.NextEdge.NextEdge.m_Twin != null)
+                tris.UnionWith(RecGetTris(_edge.NextEdge.NextEdge.m_Twin, _depth - 1));
+            
+            return tris;
+        }
+        
+        public static void Visualize(string _fileName, Delaunay.Triangle.HalfEdge _edge, int _depth = 6)
+        {
+            if (!Enabled) return;
+            var trisToRender = new HashSet<Delaunay.Triangle> {_edge.Triangle};
+
+            if(_edge.m_Twin != null)
+                trisToRender.UnionWith(RecGetTris(_edge.m_Twin, _depth));
+            
+            if(_edge.NextEdge.m_Twin != null)
+                trisToRender.UnionWith(RecGetTris(_edge.NextEdge.m_Twin, _depth));
+            
+            if(_edge.NextEdge.NextEdge.m_Twin != null)
+                trisToRender.UnionWith(RecGetTris(_edge.NextEdge.NextEdge.m_Twin, _depth));
+
+            var triList = trisToRender.ToList();
+            var bounds = new Rectf(Rectf.zero);
+            var pts = triList[0].D.Points;
+            var tris = new Vector2f[triList.Count * 3];
+
+            for (int tIdx = 0; tIdx < triList.Count; ++tIdx)
+            {
+                tris[tIdx * 3] = pts[triList[tIdx].Edge0.OriginIdx];
+                tris[tIdx * 3 + 1] = pts[triList[tIdx].Edge1.OriginIdx];
+                tris[tIdx * 3 + 2] = pts[triList[tIdx].Edge2.OriginIdx];
+            }
+
+            var minX = tris.Min(_tri => _tri.x);
+            var maxX = tris.Max(_tri => _tri.x);
+            var minY = tris.Min(_tri => _tri.y);
+            var maxY = tris.Max(_tri => _tri.y);
+
+            for (int tIdx = 0; tIdx < triList.Count; ++tIdx)
+            {
+                tris[tIdx] = new Vector2f(tris[tIdx].x - minX, tris[tIdx].y - minY);
+            }
+
+            var scale = 2f;
+            var extend = 2f;
+            var bitmap = new Bitmap((int) ((maxX - minX) * extend) * (int) scale, (int) ((maxY - minY) * extend) * (int) scale);
+
+            Func<Vector2f, Vector2f> getBMPos = _vec => { 
+                var vx = (_vec.x - minX + extend / 4f) * scale;
+                var vy = (_vec.y - minY + extend / 4f) * scale;
+                return new Vector2f(vx, vy);
+            };
+            
+            //Draw Mesh
+            foreach (var tri in triList)
+                for (var idx = 0; idx < 3; ++idx)
+                {
+                    var edge = tri.Edge(idx);
+                    var x1 = (edge.OriginPos.x - minX + extend / 4f) * scale;
+                    var y1 = (edge.OriginPos.y - minY + extend / 4f) * scale;
+                    var x2 = (edge.NextEdge.OriginPos.x - minX + extend / 4f) * scale;
+                    var y2 = (edge.NextEdge.OriginPos.y - minY + extend / 4f) * scale;
+
+                    using (var g = Graphics.FromImage(bitmap))
+                    {
+                        g.SmoothingMode = SmoothingMode.None;
+                        g.InterpolationMode = InterpolationMode.Low;
+                        g.PixelOffsetMode = PixelOffsetMode.None;
+                        var pen = new Pen(m_ColorMesh);
+                        g.DrawLine(pen, x1, y1, x2, y2);
+
+                        if (!showVertIdxs) continue;
+                        var textRect = new RectangleF(new PointF(x1, y1), new SizeF(60, 20));
+
+                        var txtBrush = new SolidBrush(RandColor(rnd));
+                        
+                        
+                        g.DrawString(edge.OriginIdx.ToString(), new Font("Small Fonts", fontSize), txtBrush,
+                            textRect);
+                    }
+                }
+            
+            //Draw CircumCircles
+            /*
+            foreach (var tri in triList)
+            {
+                var ccos = getBMPos(new Vector2f(tri.CCX, tri.CCY));
+                var r = (float) Math.Sqrt(tri.CCRSq) * scale;
+                var rul = new Vector2f(ccos.x - r, ccos.y - r);
+                var rect = new Rectangle((int)rul.x, (int)rul.y, (int)(2 * r), (int)(2 * r));
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    
+                    
+                    g.SmoothingMode = SmoothingMode.None;
+                    g.InterpolationMode = InterpolationMode.Low;
+                    g.PixelOffsetMode = PixelOffsetMode.None;
+
+                    var pen = new Pen(m_ColorCircles);
+                    g.DrawEllipse(pen, (ccos.x - r), (ccos.y - r), r * 2, r * 2);
+                    //g.DrawRectangle(pen, rect);
+                    //g.DrawLine(pen, center.x, center.y, rect.Left, rect.Top);
+                }
+            }
+            */
+            
+            var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".png";
+            bitmap.Save(path);
+            
+            //Log Tris
+            //LogTri(_fileName + ".txt", triList.ToArray());
+        }
         public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap((int) (1500), (int) (1500));
+            var bitmap = new Bitmap((int) (3000), (int) (3000));
             
             var originOffset = _d.BoundsRect.min;
             originOffset.x += 0 - bitmap.Width / 2f;
@@ -64,7 +188,7 @@ namespace ioDelaunay
 
             //Draw Frontier
             var cs = (CircleSweep) _d.triangulator;
-            var fPt = cs.frontier.Project(0)[0];
+            var fPt = cs.frontier.LastAddedFPt;
             var fpStart = fPt;
             var firstMoveDone = false;
             while (fPt.VertIdx != fpStart.VertIdx || firstMoveDone == false)
@@ -189,6 +313,7 @@ namespace ioDelaunay
             }
             
             //Temp
+            /*
             {
                 var cent = ((CircleSweep)(_d.triangulator)).Origin - originOffset;
                 var v1 = _d.Points[326757] - originOffset;
@@ -203,14 +328,55 @@ namespace ioDelaunay
 
                 }
             }
+            */
             
-            var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
+            var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".png";
             bitmap.Save(path);
         }
 
-        public static void SetZoom(Vector2f _center, Vector2f _size)
+        public static void LogTri(string _fileName, Delaunay.Triangle[] _tris, string _logAdder = "")
         {
+            if (!Enabled) return;
+            var sb = new StringBuilder();
+            for(int tIdx = 0; tIdx < _tris.Length; ++tIdx)
+            {
+                var tri = _tris[tIdx];
+                sb.AppendLine("Tri " + tIdx);
+                sb.AppendLine(" CC = ( " + tri.CCX + " , " + tri.CCY + " )");
+                sb.AppendLine(" Rad = " + (float)Math.Sqrt(tri.CCRSq) + " : " + tri.CCRSq);
+
+                var edges = new[] {tri.Edge0, tri.Edge1, tri.Edge2};
+                for (int eIdx = 0; eIdx < 3; ++eIdx)
+                {
+                    var edge = edges[eIdx];
+                    sb.AppendLine(" Edge " + eIdx + "  " + edge.OriginIdx + "  " + edge.OriginPos);
+                    var v0 = edge.OriginPos;
+                    var v1 = edge.NextEdge.OriginPos;
+                    var v2 = edge.NextEdge.NextEdge.OriginPos;
+                    var vecRt = v1 - v0;
+                    var vecLt = v2 - v0;
+                    var angle = vecRt.AngleCW(vecLt);
+                    sb.AppendLine(" Angle: " + angle + " : " + Geom.ToDeg(angle));
+                    sb.AppendLine();
+                }
+                
+                
+            }
+
+            sb.AppendLine("Adder: " + _logAdder);
+            sb.AppendLine();
             
+            var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".txt";
+            using (FileStream fs = File.Create(path)) 
+            {
+                // writing data in string
+                byte[] info = new UTF8Encoding(true).GetBytes(sb.ToString());
+                fs.Write(info, 0, info.Length);
+
+                // writing data in bytes already
+                //byte[] data = new byte[] { 0x0 };
+                //fs.Write(data, 0, data.Length);
+            }
         }
 
         public static Color RandColor(Random _r)

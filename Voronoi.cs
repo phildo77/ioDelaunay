@@ -7,9 +7,9 @@ namespace ioDelaunay
 {
     public partial class Delaunay
     {
-        public class Voronoi : PolygonGraph, IDelaunayObj
+        public class Voronoi : PolygonGraph
         {
-
+            public Delaunay D;
             private Dictionary<int, HashSet<int>> m_SitesContainingVert;
             public class Settings
             {
@@ -93,7 +93,7 @@ namespace ioDelaunay
                 var delTris = D.Triangles;
                 var centers = new List<Vector2f>();
 
-                for (int tIdx = 0; tIdx < delTris.Length; ++tIdx)
+                for (int tIdx = 0; tIdx < delTris.Count; ++tIdx)
                 {
                     var tri = delTris[tIdx];
                     float r;
@@ -107,10 +107,6 @@ namespace ioDelaunay
                 AddVertices(centers);
             }
             
-
-            public Delaunay D { get; }
-
-
             private Rectf m_DBounds = Rectf.zero;
             
             public Rectf DBounds
