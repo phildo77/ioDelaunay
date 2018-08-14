@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using Priority_Queue;
 
 namespace ioDelaunay
 {
@@ -70,11 +69,12 @@ namespace ioDelaunay
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
                 // 1) Project
-                var fntVerts = frontier.Project(m_PolPos[ofVertIdx]);
+                var fntLt = frontier.FindNextHigher(m_PolPos[ofVertIdx]).Left;
+                //var fntVerts = frontier.Project(m_PolPos[ofVertIdx]);
 
                 // 2) Create Tri and Legalize
-                var tri = new Delaunay.Triangle(fntVerts[0].EdgeRight, ofVertIdx, D);
-                var newFntPt = frontier.Add(m_PolPos[ofVertIdx], fntVerts[0]);
+                new Delaunay.Triangle(fntLt.EdgeRight, ofVertIdx, D);
+                var newFntPt = frontier.Add(m_PolPos[ofVertIdx], fntLt);
 
                 D.Legalize(newFntPt.EdgeRight.NextEdge);
 
@@ -227,6 +227,8 @@ namespace ioDelaunay
             return cc;
         }
 
+        private FastPriorityQueue<Frontier.FrontierPt> m_BasinPtQ = new FastPriorityQueue<Frontier.FrontierPt>(0);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void FillBasin(RL _dir, Frontier.FrontierPt _fpt)
         {
             //Setup
@@ -280,12 +282,13 @@ namespace ioDelaunay
 
             //Sort Basin points by R
             //var basinPts = new Dictionary<Frontier.FrontierPt, float> {{fBasEnd, PolPos(fBasEnd.VertIdx).r}};
-            var basinPtQ = new FastPriorityQueue<Frontier.FrontierPt>(ptCount);
+            //var basinPtQ = new FastPriorityQueue<Frontier.FrontierPt>(ptCount);
+            m_BasinPtQ.Reset(ptCount);
             var fBasScan = fBasStart;
             while (fBasScan.VertIdx != fBasEnd.VertIdx)
             {
                 //basinPts.Add(fBasScan, PolPos(fBasScan.VertIdx).r);
-                basinPtQ.Enqueue(fBasScan, m_PolPos[fBasScan.VertIdx].r);
+                m_BasinPtQ.Enqueue(fBasScan, m_PolPos[fBasScan.VertIdx].r);
                 fBasScan = fBasScan[_dir];
             }
 
@@ -293,16 +296,16 @@ namespace ioDelaunay
 
             //Triangluate Basin
 
-            if (basinPtQ.Count < 3) return;
+            if (m_BasinPtQ.Count < 3) return;
             var newVerts = new[]
             {
-                basinPtQ.Dequeue(),
-                basinPtQ.Dequeue(),
-                basinPtQ.Dequeue()
+                m_BasinPtQ.Dequeue(),
+                m_BasinPtQ.Dequeue(),
+                m_BasinPtQ.Dequeue()
             };
 
             //while (basinPtsByR.Count > 2)
-            while (basinPtQ.Count > 2)
+            while (m_BasinPtQ.Count > 2)
             {
                 //Find frontier point that will be removed
                 var fOut = newVerts[0];
@@ -336,7 +339,7 @@ namespace ioDelaunay
 
                 newVerts[0] = newVerts[1];
                 newVerts[1] = newVerts[2];
-                newVerts[2] = basinPtQ.Dequeue();
+                newVerts[2] = m_BasinPtQ.Dequeue();
             }
         }
 
@@ -411,6 +414,7 @@ namespace ioDelaunay
             return m_PolPos[_vertIdx];
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Walk(RL _dir, Frontier.FrontierPt _fPt)
         {
             var fvi = _fPt;
@@ -628,7 +632,7 @@ namespace ioDelaunay
             #endregion Fields
 
             #region Methods
-
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public FrontierPt Add(PolartPt _pt, FrontierPt _fLt)
             {
                 var fRt = _fLt.Right;
@@ -663,6 +667,7 @@ namespace ioDelaunay
                 return scan;
             }
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public FrontierPt FindNextHigher(PolartPt _pt)
             {
                 var grp = _pt.thetaGroup;
@@ -698,7 +703,7 @@ namespace ioDelaunay
                     return scan.Right;
                 }
             }
-
+            
             public FrontierPt[] Project(PolartPt _pPt)
             {
                 var fRt = FindNextHigher(_pPt);

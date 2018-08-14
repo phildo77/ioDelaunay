@@ -17,7 +17,7 @@ namespace ioDelaunay
         private static Color m_ColorFont = Color.BurlyWood;
         private static readonly Color m_ColorCircles = Color.Aquamarine;
         private static readonly Color m_ColorVor = Color.DodgerBlue;
-        public static bool Enabled = false;
+        public static bool Enabled = true;
         public static Vector2 OriginOffsetOverride = Vector2.positiveInfinity;
         public static Random rnd = new Random((int) DateTime.Now.Ticks);
 
@@ -145,7 +145,7 @@ namespace ioDelaunay
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap(3000, 3000);
+            var bitmap = new Bitmap(5000, 5000);
 
             var originOffset = _d.BoundsRect.min;
             originOffset.x += 0 - bitmap.Width / 2f;
@@ -157,11 +157,11 @@ namespace ioDelaunay
                 originOffset.y += OriginOffsetOverride.y - bitmap.Height / 2f;
             }
 
-            var vectTextDrawn = new HashSet<int>();
 
 
             //Draw Mesh
-            foreach (var tri in _d.Triangles)
+            var tris = _d.Triangles();
+            foreach (var tri in tris)
                 for (var idx = 0; idx < 3; ++idx)
                 {
                     var edge = tri.Edge(idx);
@@ -426,36 +426,6 @@ namespace ioDelaunay
 
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
             bitmap.Save(path);
-        }
-
-        public static void TestCirumcircle()
-        {
-            var bitmap = new Bitmap(1000, 1000);
-            var origin = Vector2.one * 50f;
-            var v0 = origin + Vector2.zero * 50f;
-            var v1 = origin + Vector2.up * 50f;
-            var v2 = origin + Vector2.right * 50f;
-            float r;
-            Vector2 center;
-            Geom.Circumcircle(v0, v1, v2, out center, out r);
-
-            using (var g = Graphics.FromImage(bitmap))
-            {
-                g.SmoothingMode = SmoothingMode.None;
-                g.InterpolationMode = InterpolationMode.Low;
-                g.PixelOffsetMode = PixelOffsetMode.None;
-                var pen = new Pen(m_ColorMesh);
-
-                g.DrawLine(pen, v0.x, v0.y, v1.x, v1.y);
-                g.DrawLine(pen, v1.x, v1.y, v2.x, v2.y);
-                g.DrawLine(pen, v2.x, v2.y, v0.x, v0.y);
-
-
-                g.DrawEllipse(pen, center.x - r, center.y - r, r * 2, r * 2);
-
-                var path = AppDomain.CurrentDomain.BaseDirectory + "TestCircumcircle" + ".bmp";
-                bitmap.Save(path);
-            }
         }
 
         public static Bitmap CropImage(Bitmap source, Rectangle section)

@@ -8,17 +8,17 @@ namespace ioDelaunay
     {
         public Rect BoundsRect;
         public List<int> HullIdxs;
-        private readonly Vector2 m_Shift; //avoid floating point zero comparisons
+        private Vector2 m_Shift = Vector2.zero; //avoid floating point zero comparisons
 
         public float MinFloatingPointErr;
-        private readonly float n;
+        private float n;
         public List<Vector2> Points;
-        public List<Triangle> Triangles;
+        //public List<Triangle> Triangles;
+        public Triangle LastTri;
+        public int TriCount = 0;
 
         private Delaunay(List<Vector2> _points)
         {
-            Points = _points;
-            Triangles = new List<Triangle>();
             var rnd = new Random(_points.Count);
             while (r11 == 0)
                 r11 = (float) rnd.NextDouble();
@@ -28,6 +28,15 @@ namespace ioDelaunay
                 r21 = (float) rnd.NextDouble();
             while (r22 == 0)
                 r22 = (float) rnd.NextDouble();
+
+            Init(_points);
+        }
+
+        private void Init(List<Vector2> _points)
+        {
+            Points = _points;
+            ClearTris();
+            BoundsRect = new Rect(Rect.zero);
 
             for (var pIdx = 0; pIdx < Points.Count; ++pIdx)
                 BoundsRect.Encapsulate(Points[pIdx]);
@@ -45,6 +54,9 @@ namespace ioDelaunay
 
             //Shift points to avoid near zero floating point
             var rectMin = BoundsRect.min;
+
+            if (rectMin.x > 0 && rectMin.y > 0) return;
+            
             m_Shift = Vector2.zero - rectMin + Vector2.one;
 
             for (var pIdx = 0; pIdx < Points.Count; ++pIdx)
@@ -52,16 +64,19 @@ namespace ioDelaunay
 
             BoundsRect.position += m_Shift;
         }
-
+        
         public Mesh Mesh
         {
             get
             {
+                /*
                 var triIdxs = new int[Triangles.Count * 3];
                 for (var tIdx = 0; tIdx < Triangles.Count; ++tIdx)
                 for (var vIdx = 0; vIdx < 3; ++vIdx)
                     triIdxs[tIdx * 3 + vIdx] = Triangles[tIdx].Edge(vIdx).OriginIdx;
                 return new Mesh(Points.ToArray(), triIdxs);
+                */
+                return null;
             }
         }
 
@@ -76,40 +91,49 @@ namespace ioDelaunay
             return del;
         }
 
-        public void ReTriangulate(IEnumerable<Vector2> _points)
+        private void ClearTris()
+        {
+            TriCount = 0;
+            if (LastTri == null) return;
+            var triScan = LastTri;
+            while (triScan.PrevTri != null)
+            {
+                var triNext = triScan.PrevTri;
+                triScan.D = null;
+                triScan.Edge0 = null;
+                triScan.Edge1 = null;
+                triScan.Edge2 = null;
+                triScan.PrevTri = null;
+                triScan = triNext;
+            }
+
+        }
+
+        public Triangle[] Triangles()
+        {
+            var triangles = new Triangle[TriCount];
+            var curTri = LastTri;
+            for (int tIdx = 0; tIdx < TriCount; ++tIdx)
+            {
+                triangles[tIdx] = curTri;
+                curTri = curTri.PrevTri;
+            }
+
+            return triangles;
+        }
+        
+        public void ReTriangulate(List<Vector2> _points)
         {
             Points.Clear();
-            Triangles.Clear();
-            BoundsRect = Rect.zero;
+            ClearTris();
 
-            AddVertices(_points);
+            Init(_points);
 
             Triangulate();
         }
 
-        public void AddVertex(Vector2 _vertex)
-        {
-            Points.Add(_vertex);
-            //m_PolysContainingVert.Add(new HashSet<Guid>());
-            if (BoundsRect == Rect.zero)
-                BoundsRect = new Rect(_vertex, Vector2.zero);
-            BoundsRect.Encapsulate(_vertex);
-        }
-
-        public void AddVertices(IEnumerable<Vector2> _vertices)
-        {
-            foreach (var vert in _vertices)
-                AddVertex(vert);
-        }
-
-
         public Triangle AddTriToMesh(Triangle.HalfEdge _twinLt, Triangle.HalfEdge _twinRt)
         {
-            //Verify validity - TODO remove optimization
-            /*
-            if (_twinLt.NextEdge.OriginIdx != _twinRt.OriginIdx)
-                throw new Exception("AddTriToMesh - twins arent touching");
-            */
             return new Triangle(_twinLt, _twinRt, this);
         }
 
@@ -129,7 +153,11 @@ namespace ioDelaunay
             public HalfEdge Edge0;
             public HalfEdge Edge1;
             public HalfEdge Edge2;
-
+            
+            //TriList
+            public Triangle PrevTri;
+            
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Triangle(HalfEdge _twinLt, HalfEdge _twinRt, Delaunay _d)
             {
                 D = _d;
@@ -156,12 +184,18 @@ namespace ioDelaunay
                 Geom.Circumcircle(pts[v0], pts[v1], pts[v2], out CCX, out CCY, out CCRSq);
 
 
-                _d.Triangles.Add(this);
+                //_d.Triangles.Add(this);
+                PrevTri = _d.LastTri;
+                _d.LastTri = this;
+
+                _d.TriCount++;
+
                 //Check for dupe verts - DEBUG TODO - Remove for optimization
                 //if (v0 == v1 || v0 == v2 || v1 == v2)
                 //    throw new Exception("new Triangle - Dupe Verts");
             }
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Triangle(HalfEdge _twin, int _newVert, Delaunay _d)
             {
                 D = _d;
@@ -184,13 +218,17 @@ namespace ioDelaunay
 
                 Geom.Circumcircle(pts[v0], pts[v1], pts[v2], out CCX, out CCY, out CCRSq);
 
-                _d.Triangles.Add(this);
+                //_d.Triangles.Add(this);
+                PrevTri = _d.LastTri;
+                _d.LastTri = this;
 
+                _d.TriCount++;
                 //Check for dupe verts - DEBUG TODO - Remove for optimization
                 //if (v0 == v1 || v0 == v2 || v1 == v2)
                 //    throw new Exception("new Triangle - Dupe Verts");
             }
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Triangle(int _v0, int _v1, int _v2, Delaunay _d)
             {
                 //Check for dupe verts - DEBUG TODO - Remove for optimization
@@ -212,8 +250,10 @@ namespace ioDelaunay
                 Geom.Circumcircle(pts[_v0], pts[_v1], pts[_v2], out CCX, out CCY, out CCRSq);
 
 
-                _d.Triangles.Add(this);
-                //Edges = new[] { edge0, edge1, edge2 };
+                //_d.Triangles.Add(this);
+                PrevTri = _d.LastTri;
+                _d.LastTri = this;
+                _d.TriCount++;
             }
 
             public HalfEdge Edge(int _idx)
@@ -225,15 +265,6 @@ namespace ioDelaunay
                 return Edge2;
             }
 
-            /// <summary>
-            ///     Calculate center and radius of circumcircle of this triangle.
-            /// </summary>
-            /// <param name="_center">Populated with center coord of circumcircle</param>
-            /// <param name="_r">Populated with radius squared of circumcircle</param>
-            public void CircumCircle(out Vector2 _center, out float _rSqr)
-            {
-                Geom.Circumcircle(Edge0.OriginPos, Edge1.OriginPos, Edge2.OriginPos, out _center, out _rSqr);
-            }
 
             public class HalfEdge
             {
@@ -243,7 +274,8 @@ namespace ioDelaunay
                 public HalfEdge NextEdge;
                 public int OriginIdx;
                 public Triangle Triangle;
-
+                
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 public HalfEdge(Triangle _triangle, int _originIdx, Delaunay _d)
                 {
                     D = _d;
@@ -252,25 +284,6 @@ namespace ioDelaunay
                 }
 
                 public Vector2 OriginPos => D.Points[OriginIdx];
-
-                public Vector2 AsVector
-                {
-                    get
-                    {
-                        if (NextEdge == null) return Vector2.zero;
-                        return NextEdge.OriginPos - OriginPos;
-                    }
-                }
-
-                public void SetTwin(HalfEdge _twin)
-                {
-                    var newTwin = _twin;
-                    if (m_Twin != null)
-                        m_Twin.m_Twin = null;
-                    m_Twin = newTwin;
-                    if (newTwin != null)
-                        newTwin.m_Twin = this;
-                }
             }
         }
 
@@ -306,20 +319,7 @@ namespace ioDelaunay
         }
     }
 
-    /// <summary>
-    ///     Comparer for comparing two keys, handling equality as beeing greater
-    ///     Use this Comparer e.g. with SortedLists or SortedDictionaries, that don't allow duplicate keys
-    /// </summary>
-    /// <typeparam name="TKey"></typeparam>
-    internal class DuplicateKeyComparer<TKey> : IComparer<TKey> where TKey : IComparable
-    {
-        public int Compare(TKey _x, TKey _y)
-        {
-            var result = _x.CompareTo(_y);
-
-            return result == 0 ? 1 : result;
-        }
-    }
+    
 
     public static class Ext
     {

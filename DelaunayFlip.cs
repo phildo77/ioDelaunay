@@ -9,15 +9,16 @@ namespace ioDelaunay
         private readonly Triangle.HalfEdge[] m_RefOuterEdges = new Triangle.HalfEdge[4];
 
 
-        private readonly float r11;
-        private readonly float r12;
-        private readonly float r21;
-        private readonly float r22;
+        private float r11;
+        private float r12;
+        private float r21;
+        private float r22;
 
         /// <summary>
         ///     Iterative legalization - Assumes all edges have twins
         /// </summary>
         /// <param name="_edges"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Legalize(params Triangle.HalfEdge[] _edges)
         {
             for (var eIdx = 0; eIdx < _edges.Length; ++eIdx) m_EdgeStack.Push(_edges[eIdx]);

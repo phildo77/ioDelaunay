@@ -69,47 +69,6 @@ namespace ioDelaunay
             return _vals.Max();
         }
 
-
-        public static bool Circumcircle(Vector2 a, Vector2 b, Vector2 c, out Vector2 center, out float radiusSqr)
-        {
-            var A = b.x - a.x;
-            var B = b.y - a.y;
-            var C = c.x - a.x;
-            var D = c.y - a.y;
-            var E = A * (a.x + b.x) + B * (a.y + b.y);
-            var F = C * (a.x + c.x) + D * (a.y + c.y);
-            var G = 2 * (A * (c.y - b.y) - B * (c.x - b.x));
-
-            float minx, miny, dx, dy;
-
-            /* If the points of the triangle are collinear, then just find the
-             * extremes and use the midpoint as the center of the circumcircle. */
-
-            if (Math.Abs(G) < 0.000001)
-            {
-                minx = Min(a.x, b.x, c.x);
-                miny = Min(a.y, b.y, c.y);
-                dx = (Max(a.x, b.x, c.x) - minx) * 0.5f;
-                dy = (Max(a.y, b.y, c.y) - miny) * 0.5f;
-
-                center = new Vector2(minx + dx, miny + dy);
-                radiusSqr = dx * dx + dy * dy;
-            }
-            else
-            {
-                var cx = (D * E - B * F) / G;
-                var cy = (A * F - C * E) / G;
-
-                center = new Vector2(cx, cy);
-                dx = cx - a.x;
-                dy = cy - a.y;
-
-                radiusSqr = dx * dx + dy * dy;
-            }
-
-            return true;
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Circumcircle(Vector2 a, Vector2 b, Vector2 c,
             out float _centX, out float _centY, out float radiusSqr)

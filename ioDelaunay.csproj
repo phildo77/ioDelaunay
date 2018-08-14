@@ -46,6 +46,7 @@
     <Compile Include="DebugVisualizer.cs" />
     <Compile Include="Delaunay.cs" />
     <Compile Include="DelaunayFlip.cs" />
+    <Compile Include="FastPriorityQueue.cs" />
     <Compile Include="Geom.cs" />
     <Compile Include="Mesh.cs" />
     <Compile Include="PolygonGraph.cs" />
@@ -53,12 +54,6 @@
     <Compile Include="Rect.cs" />
     <Compile Include="Vector2.cs" />
     <Compile Include="Voronoi.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\3rd Party\High-Speed-Priority-Queue-for-C-Sharp-master\Priority Queue\Priority Queue.csproj">
-      <Project>{1531c1ea-bd53-41d1-a34b-cfcdf79d2651}</Project>
-      <Name>Priority Queue</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

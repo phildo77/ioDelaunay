@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ioDelaunay
@@ -62,15 +63,14 @@ namespace ioDelaunay
                 m_SitesContainingVert.Clear();
                 m_BoundsRect = Rect.zero;
 
-                var delTris = D.Triangles;
+                var delTris = D.Triangles();
                 var centers = new List<Vector2>();
 
-                for (var tIdx = 0; tIdx < delTris.Count; ++tIdx)
+                for (var tIdx = 0; tIdx < delTris.Length; ++tIdx)
                 {
                     var tri = delTris[tIdx];
                     float r;
-                    Vector2 center;
-                    tri.CircumCircle(out center, out r);
+                    Vector2 center = new Vector2(tri.CCX, tri.CCY);
                     centers.Add(center);
                     //m_CentIdxByTriID.Add(tri.ID, tIdx); TODO - TO fix for new tri
                     //m_TriIDByCentIdx.Add(tIdx, tri.ID); TODO - to fix for new triangle def
@@ -572,6 +572,21 @@ namespace ioDelaunay
             private interface IVoronoiObj
             {
                 Voronoi V { get; }
+            }
+            
+            /// <summary>
+            ///     Comparer for comparing two keys, handling equality as beeing greater
+            ///     Use this Comparer e.g. with SortedLists or SortedDictionaries, that don't allow duplicate keys
+            /// </summary>
+            /// <typeparam name="TKey"></typeparam>
+            internal class DuplicateKeyComparer<TKey> : IComparer<TKey> where TKey : IComparable
+            {
+                public int Compare(TKey _x, TKey _y)
+                {
+                    var result = _x.CompareTo(_y);
+
+                    return result == 0 ? 1 : result;
+                }
             }
         }
     }
