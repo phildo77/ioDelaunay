@@ -1,29 +1,14 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Priority_Queue;
 
-
 namespace ioDelaunay
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using Vectorf;
-
     public class CircleSweep : Delaunay.Triangulator
     {
-        #region Fields
-
-        public Rectf Bounds => new Rectf(D.BoundsRect);
-        public Frontier frontier;
-
-        // Change
-        // Don't change
-        private PolartPt[] m_PolPos; //By Point Idx
-        private int[] m_VertIdxsByR;
-
-        #endregion Fields
-
         #region Enumerations
 
         public enum RL
@@ -34,30 +19,36 @@ namespace ioDelaunay
 
         #endregion Enumerations
 
+        #region Properties
+
+        public Vector2 Origin { get; private set; }
+
+        #endregion Properties
+
         #region Nested Interfaces
 
         private interface ICircleSweepObj
         {
             #region Properties
 
-            CircleSweep CS
-            {
-                get;
-            }
+            CircleSweep CS { get; }
 
             #endregion Properties
         }
 
         #endregion Nested Interfaces
 
-        #region Properties
+        #region Fields
 
-        public Vector2f Origin
-        {
-            get; private set;
-        }
+        public Rect Bounds => new Rect(D.BoundsRect);
+        public Frontier frontier;
 
-        #endregion Properties
+        // Change
+        // Don't change
+        private PolartPt[] m_PolPos; //By Point Idx
+        private int[] m_VertIdxsByR;
+
+        #endregion Fields
 
         #region Methods
 
@@ -76,7 +67,6 @@ namespace ioDelaunay
 
             for (var rIdx = 0; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
-                    
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
                 // 1) Project
@@ -88,26 +78,23 @@ namespace ioDelaunay
 
                 D.Legalize(newFntPt.EdgeRight.NextEdge);
 
-                
-                
                 // 3) Walk Left
                 Walk(RL.Left, newFntPt);
-                
+
                 // 4) Walk Right
                 Walk(RL.Right, newFntPt);
-                
+
                 // 5) Check / Fill Basin Right
                 FillBasin(RL.Right, newFntPt);
-                
+
                 // 6) Check / Fill Basin Left
                 FillBasin(RL.Left, newFntPt);
-                
             }
 
             // 7) Finalize
             FinalizeHull();
         }
-        
+
         protected void FinalizeHull()
         {
             var fStart = frontier.LastAddedFPt;
@@ -123,7 +110,7 @@ namespace ioDelaunay
                 var fScanPos = pts[fScan.VertIdx];
                 var vecL = pts[fScan.Left.VertIdx] - fScanPos;
                 var vecR = pts[fScan.Right.VertIdx] - fScanPos;
-                
+
                 //var vecL = fScan.Left.Pos - fScan.Pos;
                 //var vecR = fScan.Right.Pos - fScan.Pos;
                 while (vecL.AngleCW(vecR) < maxHullAngle)
@@ -147,7 +134,7 @@ namespace ioDelaunay
                     var fScanPos2 = pts[fScan.VertIdx];
                     vecL = pts[fScan.Left.VertIdx] - fScanPos2;
                     vecR = pts[fScan.Right.VertIdx] - fScanPos2;
-                    
+
                     //vecL = fScan.Left.Pos - fScan.Pos;
                     //vecR = fScan.Right.Pos - fScan.Pos;
                 }
@@ -160,8 +147,8 @@ namespace ioDelaunay
         protected override void Hull()
         {
             var fScan = frontier.LastAddedFPt;
-            Frontier.FrontierPt fStart = fScan;
-            D.HullIdxs = new List<int>() {fStart.VertIdx};
+            var fStart = fScan;
+            D.HullIdxs = new List<int> {fStart.VertIdx};
             fScan = fScan.Right;
             while (fScan.VertIdx != fStart.VertIdx)
             {
@@ -169,7 +156,7 @@ namespace ioDelaunay
                 fScan = fScan.Right;
             }
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int BinarySearch(IList<float> _list, float _value)
         {
@@ -193,16 +180,16 @@ namespace ioDelaunay
             return ~lower;
         }
 
-        private Vector2f CalcOrigin(out int[] _firstTriIdxs)
+        private Vector2 CalcOrigin(out int[] _firstTriIdxs)
         {
             var cent = Bounds.center;
             var closest = new SortedList<float, int>
             {
-                { (cent - D.Points[0]).sqrMagnitude, 0},
-                { (cent - D.Points[1]).sqrMagnitude, 1},
-                { (cent - D.Points[2]).sqrMagnitude, 2}
+                {(cent - D.Points[0]).sqrMagnitude, 0},
+                {(cent - D.Points[1]).sqrMagnitude, 1},
+                {(cent - D.Points[2]).sqrMagnitude, 2}
             };
-            
+
             for (var idx = 3; idx < D.Points.Count; ++idx)
             {
                 var pt = D.Points[idx];
@@ -215,22 +202,25 @@ namespace ioDelaunay
             _firstTriIdxs = new[] {closest.Values[0], closest.Values[1], closest.Values[2]};
             //Find 1st non-linear set of points (valid triangle)
             var findNonLineIdx = 3;
-            while (Geom.AreColinear(D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]))
-            {
-                _firstTriIdxs[2] = closest[findNonLineIdx++];
-            }
+            while (Geom.AreColinear(D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]],
+                D.MinFloatingPointErr)) _firstTriIdxs[2] = closest.Values[findNonLineIdx++];
 
             //Force Clockwise
             var v0 = D.Points[_firstTriIdxs[0]];
             var v1 = D.Points[_firstTriIdxs[1]];
             var v2 = D.Points[_firstTriIdxs[2]];
-            var angleCCW = Vector2f.SignedAngle(v1 - v0, v2 - v0);
-            if (angleCCW > 0)
+            var vecL = v1 - v0;
+            var vecR = v2 - v0;
+
+            //Positive Cross Product greater than 180
+            var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
+            if (crossZ > 0)
             {
                 var tempIdx = _firstTriIdxs[1];
                 _firstTriIdxs[1] = _firstTriIdxs[2];
                 _firstTriIdxs[2] = tempIdx;
             }
+
 
             var triPts = new[] {D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]};
             var cc = Geom.CentroidOfPoly(triPts);
@@ -263,7 +253,7 @@ namespace ioDelaunay
                 fBasMin = fBasMin[_dir];
                 ptCount++;
             }
-                
+
 
             //Find Basin End 
             var fBasEnd = fBasMin;
@@ -273,11 +263,15 @@ namespace ioDelaunay
 
                 var vecL = pts[fBasEnd[RL.Left].VertIdx] - fbePos;
                 var vecR = pts[fBasEnd[RL.Right].VertIdx] - fbePos;
-                
+
                 //var vecL = fBasEnd[RL.Left].Pos - fBasEnd.Pos;
                 //var vecR = fBasEnd[RL.Right].Pos - fBasEnd.Pos;
-                var angleCW = vecL.AngleCW(vecR);
-                if (angleCW >= Math.PI - float.Epsilon) break;
+                //var angleCW = vecL.AngleCW(vecR);
+
+                //Positive Cross Product greater than 180
+                var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
+                if (crossZ > 0) break;
+
                 fBasEnd = fBasEnd[_dir];
                 ptCount++;
             }
@@ -306,26 +300,27 @@ namespace ioDelaunay
                 basinPtQ.Dequeue(),
                 basinPtQ.Dequeue()
             };
-            
+
             //while (basinPtsByR.Count > 2)
-            while(basinPtQ.Count > 2)
+            while (basinPtQ.Count > 2)
             {
                 //Find frontier point that will be removed
-                Frontier.FrontierPt fOut = newVerts[0];
+                var fOut = newVerts[0];
                 if (!newVerts.Contains(fOut[RL.Right]) || !newVerts.Contains(fOut[RL.Left]))
                     fOut = newVerts[1];
 
                 //Check that tri is valid (due to radius from Origin)
                 var fOutPos = pts[fOut.VertIdx];
-                var vecLt = pts[fOut.Left.VertIdx] - fOutPos;
-                var vecRt = pts[fOut.Right.VertIdx] - fOutPos;
-                
+                var vecL = pts[fOut.Left.VertIdx] - fOutPos;
+                var vecR = pts[fOut.Right.VertIdx] - fOutPos;
+
                 //var vecLt = fOut.Left.Pos - fOut.Pos;
                 //var vecRt = fOut.Right.Pos - fOut.Pos;
-                
+
                 //Check for lines
-                var triAngle = vecLt.AngleCW(vecRt);
-                if (triAngle >= Math.PI - float.Epsilon) break;
+                //Positive Cross Product greater than 180
+                var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
+                if (crossZ > 0) break;
 
                 var twinLt = fOut[RL.Left].EdgeRight;
                 var twinRt = fOut.EdgeRight;
@@ -345,7 +340,7 @@ namespace ioDelaunay
             }
         }
 
-        
+
         private void DebugCheckFrontier()
         {
             var proj = frontier.ProjectZero();
@@ -359,17 +354,10 @@ namespace ioDelaunay
                 var t0 = m_PolPos[fPt.Left.VertIdx].Theta;
                 var t1 = m_PolPos[fPt.VertIdx].Theta;
 
-                if (t1 < t0)
-                {
-                    Trace.WriteLine("Debug");
-                }
+                if (t1 < t0) Trace.WriteLine("Debug");
 
                 fPt = fPt.Right;
-
-
-
             }
-            
         }
 
         private void Init()
@@ -377,17 +365,17 @@ namespace ioDelaunay
             int[] firstTriIdxs;
             Origin = CalcOrigin(out firstTriIdxs);
             var ptCnt = D.Points.Count;
-            List<float> thetaKeys; 
+            List<float> thetaKeys;
             var thetaGroups = Frontier.ThetaGroup.BuildThetaGroups(ptCnt, out thetaKeys);
             m_PolPos = new PolartPt[ptCnt]; //TODO make this dynamic to save memory?
             m_VertIdxsByR = new int[ptCnt - 3];
             var idxOffset = 0;
-            for (int pIdx = 0; pIdx < D.Points.Count; ++pIdx)
+            for (var pIdx = 0; pIdx < D.Points.Count; ++pIdx)
             {
                 //Store polar position
                 var polPos = new PolartPt(D.Points[pIdx], Origin, this);
                 m_PolPos[pIdx] = polPos;
-                
+
                 //Reference theta group
                 var grpIdx = BinarySearch(thetaKeys, polPos.Theta);
                 if (grpIdx < 0)
@@ -398,21 +386,20 @@ namespace ioDelaunay
                 }
 
                 polPos.thetaGroup = thetaGroups[thetaKeys[grpIdx]];
-                
+
                 //Prepare r index reference (to be sorted later)
                 if (firstTriIdxs.Contains(pIdx))
                 {
                     idxOffset++;
                     continue;
                 }
+
                 m_VertIdxsByR[pIdx - idxOffset] = pIdx;
-                
-                
             }
 
             //Sort points by distance to origin
             Array.Sort(m_VertIdxsByR, (_a, _b) => m_PolPos[_a].r.CompareTo(m_PolPos[_b].r));
-            
+
             //Init Frontier
             var firstTri = new Delaunay.Triangle(firstTriIdxs[0], firstTriIdxs[1], firstTriIdxs[2], D);
 
@@ -433,20 +420,20 @@ namespace ioDelaunay
                 var fvn = fvi[_dir];
                 var fLt = fvn[RL.Left];
                 var fRt = fvn[RL.Right];
-                
+
                 var fvnPos = pts[fvn.VertIdx];
 
                 var vecL = pts[fLt.VertIdx] - fvnPos;
                 var vecR = pts[fRt.VertIdx] - fvnPos;
                 //var angleCW = vecL.AngleCW(vecR);
                 //if (angleCW > Math.PI / 2f) break;
-                //Cross Product greater than 180
+                //Positive Cross Product greater than 180
                 var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
                 if (crossZ > 0) break;
-                //If dot product is greater than zero ( < 90 degrees )
-                var dot = (vecL.x * vecR.x + vecL.y * vecR.y);
+                //Positive Dot product greater than 90
+                var dot = vecL.x * vecR.x + vecL.y * vecR.y;
                 if (dot < 0) break;
-                
+
                 var twinLt = fLt.EdgeRight;
                 var twinRt = fvn.EdgeRight;
                 var newTri = D.AddTriToMesh(twinLt, twinRt);
@@ -469,9 +456,15 @@ namespace ioDelaunay
                 public const int MAX_CHILD_COUNT = 10;
                 public Dictionary<int, ThetaGroup> Children;
                 public FrontierPt First;
-                public float ThetaStart;
+                public int FPCount;
                 public float ThetaRangeInv;
-                public int FPCount = 0;
+                public float ThetaStart;
+
+                public ThetaGroup(float _thetaStart, float _thetaRange)
+                {
+                    ThetaStart = _thetaStart;
+                    ThetaRangeInv = 1 / _thetaRange;
+                }
 
                 public int GetKey(float _theta)
                 {
@@ -490,10 +483,8 @@ namespace ioDelaunay
                         Children = new Dictionary<int, ThetaGroup>();
                         var thetaStart = ThetaStart;
                         var incr = 1 / (ThetaRangeInv * MAX_CHILD_COUNT);
-                        for (int idx = 0; idx < MAX_CHILD_COUNT; ++idx)
-                        {
+                        for (var idx = 0; idx < MAX_CHILD_COUNT; ++idx)
                             Children.Add(idx, new ThetaGroup(thetaStart, idx * incr));
-                        }
 
                         Children[GetKey(_newPt.Theta)].Add(_newPt, _fPtRt);
                     }
@@ -511,10 +502,7 @@ namespace ioDelaunay
 
                 public FrontierPt[] Project(float _theta)
                 {
-                    if (Children != null)
-                    {
-                        return Children[GetKey(_theta)].Project(_theta);
-                    }
+                    if (Children != null) return Children[GetKey(_theta)].Project(_theta);
 
                     var fScan = First;
                     while (fScan.Theta > _theta)
@@ -538,17 +526,20 @@ namespace ioDelaunay
                         FPCount--;
                     }
                 }
-
-                public ThetaGroup(float _thetaStart, float _thetaRange)
-                {
-                    ThetaStart = _thetaStart;
-                    ThetaRangeInv = 1 / _thetaRange;
-                    
-                }
             }
-            
+
             public class FrontierPt : FastPriorityQueueNode, ICircleSweepObj
             {
+                #region Constructors
+
+                public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
+                {
+                    EdgeRight = _edge;
+                    CS = _cs;
+                }
+
+                #endregion Constructors
+
                 #region Fields
 
                 public int VertIdx => EdgeRight.OriginIdx;
@@ -563,27 +554,11 @@ namespace ioDelaunay
 
                 #endregion Fields
 
-                #region Constructors
-
-                public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
-                {
-                    EdgeRight = _edge;
-                    CS = _cs;
-                }
-
-                #endregion Constructors
-
                 #region Properties
 
-                public CircleSweep CS
-                {
-                    get;
-                }
+                public CircleSweep CS { get; }
 
-                public int EdgeRightIdx
-                {
-                    get; private set;
-                }
+                public int EdgeRightIdx { get; private set; }
 
                 #endregion Properties
 
@@ -598,24 +573,16 @@ namespace ioDelaunay
                 public override string ToString()
                 {
                     var er = (EdgeRight ?? (object) "").ToString();
-                    return "Fnt Pt v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " + Left.VertIdx + " EdgeRt: " + er;
+                    return "Fnt Pt v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " + Left.VertIdx + " EdgeRt: " +
+                           er;
                 }
 
                 #endregion Methods
             }
-
         }
-        
+
         public class Frontier : ICircleSweepObj
         {
-            #region Fields
-
-            private Dictionary<float, ThetaGroup> m_ThetaGroups;
-
-            public FrontierPt LastAddedFPt;
-
-            #endregion Fields
-
             #region Constructors
 
             public Frontier(Delaunay.Triangle _firstTri, Dictionary<float, ThetaGroup> _tgs, CircleSweep _cs)
@@ -642,19 +609,23 @@ namespace ioDelaunay
                 CS.m_PolPos[ftPts[0].VertIdx].thetaGroup.Add(ftPts[0]);
                 CS.m_PolPos[ftPts[1].VertIdx].thetaGroup.Add(ftPts[1]);
                 CS.m_PolPos[ftPts[2].VertIdx].thetaGroup.Add(ftPts[2]);
-                
             }
 
             #endregion Constructors
 
             #region Properties
 
-            public CircleSweep CS
-            {
-                get;
-            }
+            public CircleSweep CS { get; }
 
             #endregion Properties
+
+            #region Fields
+
+            private Dictionary<float, ThetaGroup> m_ThetaGroups;
+
+            public FrontierPt LastAddedFPt;
+
+            #endregion Fields
 
             #region Methods
 
@@ -665,8 +636,7 @@ namespace ioDelaunay
                 var newEdgeRt = newEdgeLt.NextEdge;
                 var fNew = new FrontierPt(newEdgeRt, CS);
 
-                
-                
+
                 _fLt.Right = fRt.Left = fNew;
                 _fLt.EdgeRight = newEdgeLt;
 
@@ -674,7 +644,7 @@ namespace ioDelaunay
                 fNew.Right = fRt;
 
                 _pt.thetaGroup.Add(fNew);
-                
+
                 LastAddedFPt = fNew;
                 return fNew;
             }
@@ -685,14 +655,14 @@ namespace ioDelaunay
 
                 while (grp.First == null)
                     grp = grp.Next;
-                
+
                 var scan = grp.First;
 
-                while ((scan.Theta - scan.Left.Theta >= 0))
+                while (scan.Theta - scan.Left.Theta >= 0)
                     scan = scan.Right;
                 return scan;
             }
-            
+
             public FrontierPt FindNextHigher(PolartPt _pt)
             {
                 var grp = _pt.thetaGroup;
@@ -712,7 +682,7 @@ namespace ioDelaunay
                         scan = scan.Right;
                     return scan;
                 }
-               
+
                 if (theta < grp.Mid)
                 {
                     var scan = grp.First;
@@ -739,7 +709,6 @@ namespace ioDelaunay
             {
                 var fRt = FindNextHigherAtZero();
                 return new[] {fRt.Left, fRt};
-
             }
 
             public void Remove(FrontierPt _fPt, Delaunay.Triangle.HalfEdge _newEdgeRight)
@@ -759,11 +728,13 @@ namespace ioDelaunay
 
             public class ThetaGroup
             {
+                public FrontierPt First;
+
+                public ThetaGroup Next;
 
                 public float Min => First.Theta; //TODO dynamic math or static span?
                 public float Mid => Min + (Max - Min) / 2;
                 public float Max => Next.First.Left.Theta;
-                public FrontierPt First;
 
                 public FrontierPt Last //TODO SLOW
                 {
@@ -780,34 +751,32 @@ namespace ioDelaunay
                     }
                 }
 
-                public ThetaGroup Next;
                 public int Count { get; private set; }
 
 
                 /// <summary>
-                /// We'll need the theta groups built for init before the frontier is constructed.
+                ///     We'll need the theta groups built for init before the frontier is constructed.
                 /// </summary>
                 /// <param name="_pntCount"></param>
                 /// <returns></returns>
                 public static Dictionary<float, ThetaGroup> BuildThetaGroups(int _pntCount, out List<float> _keys)
                 {
-                    
                     //Init theta groups
                     var k = 1 + (int) Math.Pow(_pntCount, 1f / 3f);
-                    float incr = (float)(2d * Math.PI / k);
+                    var incr = (float) (2d * Math.PI / k);
                     var curIncr = incr;
                     //var prevTg = new ThetaGroup(0, incr);
-                    _keys = new List<float>() {0f};
+                    _keys = new List<float> {0f};
                     var prevTg = new ThetaGroup();
                     var thetaGroups = new Dictionary<float, ThetaGroup>(k)
                     {
                         {0, prevTg}
                     };
-                    for (int grpIdx = 1; grpIdx < k - 1; ++grpIdx)
+                    for (var grpIdx = 1; grpIdx < k - 1; ++grpIdx)
                     {
                         _keys.Add(curIncr);
                         var nextIncr = curIncr + incr;
-                        
+
                         //var tg = new ThetaGroup(curIncr, nextIncr);
                         var tg = new ThetaGroup();
                         thetaGroups.Add(curIncr, tg);
@@ -823,9 +792,7 @@ namespace ioDelaunay
 
                     return thetaGroups;
                 }
-                
-                public ThetaGroup() {}
-                
+
                 /*
                 public ThetaGroup(float _min, float _max)
                 {
@@ -847,33 +814,33 @@ namespace ioDelaunay
                     var newTheta = _pt.Theta;
                     var firstTheta = First.Theta;
                     if (firstTheta > newTheta)
-                    {
                         First = _pt;
-                    }
-                    else if (_pt.Right == First)
-                    {
-                        First = _pt;
-                    }
+                    else if (_pt.Right == First) First = _pt;
 
                     Count++;
                 }
 
-                
 
                 public void Remove(FrontierPt _pt)
                 {
-                    if (_pt == First)
-                    {
-                        First = Count == 1 ? null : First.Right;
-                    }
+                    if (_pt == First) First = Count == 1 ? null : First.Right;
 
                     Count--;
-
                 }
             }
-            
+
             public class FrontierPt : FastPriorityQueueNode, ICircleSweepObj
             {
+                #region Constructors
+
+                public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
+                {
+                    EdgeRight = _edge;
+                    CS = _cs;
+                }
+
+                #endregion Constructors
+
                 #region Fields
 
                 public int VertIdx => EdgeRight.OriginIdx;
@@ -889,27 +856,11 @@ namespace ioDelaunay
 
                 #endregion Fields
 
-                #region Constructors
-
-                public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
-                {
-                    EdgeRight = _edge;
-                    CS = _cs;
-                }
-
-                #endregion Constructors
-
                 #region Properties
 
-                public CircleSweep CS
-                {
-                    get;
-                }
+                public CircleSweep CS { get; }
 
-                public int EdgeRightIdx
-                {
-                    get; private set;
-                }
+                public int EdgeRightIdx { get; private set; }
 
                 #endregion Properties
 
@@ -924,19 +875,16 @@ namespace ioDelaunay
                 public override string ToString()
                 {
                     var er = (EdgeRight ?? (object) "").ToString();
-                    return "Fnt Pt t: " + Theta + " v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " + Left.VertIdx + " EdgeRt: " + er;
+                    return "Fnt Pt t: " + Theta + " v: " + VertIdx + " RtV: " + Right.VertIdx + " LtV: " +
+                           Left.VertIdx + " EdgeRt: " + er;
                 }
 
                 #endregion Methods
             }
 
-            
-
-            
-
             #endregion Nested Types
         }
-        
+
         //TODO PRIVATE?
         /*
         public class Frontier : ICircleSweepObj
@@ -1382,6 +1330,12 @@ namespace ioDelaunay
 */
         public class PolartPt : ICircleSweepObj
         {
+            #region Properties
+
+            public CircleSweep CS { get; }
+
+            #endregion Properties
+
             #region Fields
 
             public readonly float r;
@@ -1399,14 +1353,14 @@ namespace ioDelaunay
                 CS = _cs;
             }
 
-            public PolartPt(Vector2f _cPt, Vector2f _origin, CircleSweep _cs)
+            public PolartPt(Vector2 _cPt, Vector2 _origin, CircleSweep _cs)
             {
                 CS = _cs;
 
                 var vec = _cPt - _origin;
-                r = vec.magnitude;  //TODO optimize (use sqr?)
+                r = vec.magnitude; //TODO optimize (use sqr?)
 
-                var from = Vector2f.right - _origin;
+                var from = Vector2.right - _origin;
                 Theta = from.AngleCW(vec);
                 //var nx = _cPt.x - _origin.x;
                 //var ny = _cPt.y - _origin.y;
@@ -1416,15 +1370,6 @@ namespace ioDelaunay
             }
 
             #endregion Constructors
-
-            #region Properties
-
-            public CircleSweep CS
-            {
-                get;
-            }
-
-            #endregion Properties
         }
 
         public static class Settings
@@ -1444,11 +1389,6 @@ namespace ioDelaunay
             #endregion Fields
         }
 
-         
-        
         #endregion Nested Types
     }
-
-    
-    
 }

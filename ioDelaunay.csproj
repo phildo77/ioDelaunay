@@ -50,16 +50,14 @@
     <Compile Include="Mesh.cs" />
     <Compile Include="PolygonGraph.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Rect.cs" />
+    <Compile Include="Vector2.cs" />
     <Compile Include="Voronoi.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\3rd Party\High-Speed-Priority-Queue-for-C-Sharp-master\Priority Queue\Priority Queue.csproj">
       <Project>{1531c1ea-bd53-41d1-a34b-cfcdf79d2651}</Project>
       <Name>Priority Queue</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Vectorf\Vectorf.csproj">
-      <Project>{6cd06271-bb13-4cc1-a22d-781af5e2264a}</Project>
-      <Name>Vectorf</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

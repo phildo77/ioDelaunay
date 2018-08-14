@@ -2,8 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ioDelaunay", "ioDelaunay.csproj", "{E3199C4D-A2A8-4AAE-BD56-34D70CEF3195}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vectorf", "..\Vectorf\Vectorf.csproj", "{6CD06271-BB13-4CC1-A22D-781AF5E2264A}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ioDelaunayTest", "ioDelaunayTest\ioDelaunayTest.csproj", "{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Priority Queue", "..\3rd Party\High-Speed-Priority-Queue-for-C-Sharp-master\Priority Queue\Priority Queue.csproj", "{1531C1EA-BD53-41D1-A34B-CFCDF79D2651}"
@@ -18,10 +16,6 @@ Global
 		{E3199C4D-A2A8-4AAE-BD56-34D70CEF3195}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E3199C4D-A2A8-4AAE-BD56-34D70CEF3195}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E3199C4D-A2A8-4AAE-BD56-34D70CEF3195}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6CD06271-BB13-4CC1-A22D-781AF5E2264A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6CD06271-BB13-4CC1-A22D-781AF5E2264A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6CD06271-BB13-4CC1-A22D-781AF5E2264A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6CD06271-BB13-4CC1-A22D-781AF5E2264A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
