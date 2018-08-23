@@ -314,10 +314,10 @@ namespace ioDelaunay
                     break;
                 }
 
-                DebugVisualizer.Visualize(D, this, "VorOuter");
+                //DebugVisualizer.Visualize(D, this, "VorOuter");
                 CleanVerts();
 
-                DebugVisualizer.Visualize(D, this, "VorPostVertRemove");
+                //DebugVisualizer.Visualize(D, this, "VorPostVertRemove");
             }
 
             private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd)

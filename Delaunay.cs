@@ -7,7 +7,8 @@ namespace ioDelaunay
     public partial class Delaunay
     {
         public Rect BoundsRect;
-        public List<int> HullIdxs;
+        public List<int> HullIdxs;  //TODO REMOVE
+        public List<Triangle.HalfEdge> HullEdges;
         private Vector2 m_Shift = Vector2.zero; //avoid floating point zero comparisons
 
         public float MinFloatingPointErr;
@@ -130,11 +131,6 @@ namespace ioDelaunay
             Init(_points);
 
             Triangulate();
-        }
-
-        public Triangle AddTriToMesh(Triangle.HalfEdge _twinLt, Triangle.HalfEdge _twinRt)
-        {
-            return new Triangle(_twinLt, _twinRt, this);
         }
 
         public void Triangulate()

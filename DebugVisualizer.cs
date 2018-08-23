@@ -11,7 +11,7 @@ namespace ioDelaunay
     public static class DebugVisualizer
     {
         public static int fontSize = 5;
-        public static bool showVertIdxs = true;
+        public static bool showVertIdxs = false;
         private static readonly Color m_ColorMesh = Color.White;
         private static readonly Color m_ColorFront = Color.Red;
         private static Color m_ColorFont = Color.BurlyWood;
@@ -141,11 +141,11 @@ namespace ioDelaunay
             //LogTri(_fileName + ".txt", triList.ToArray());
         }
 
-        public static void Visualize(Delaunay _d, Delaunay.Voronoi _v = null, string _fileName = "debugMesh")
+        public static void Visualize(Delaunay _d, Voronoi2 _v = null, string _fileName = "debugMesh")
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
-            var bitmap = new Bitmap(5000, 5000);
+            var bitmap = new Bitmap(2000, 2000);
 
             var originOffset = _d.BoundsRect.min;
             originOffset.x += 0 - bitmap.Width / 2f;
@@ -258,18 +258,20 @@ namespace ioDelaunay
             //Voronoi on top
             if (_v != null)
             {
-                var sites = _v.Sites;
+                var sites = _v.SitesByDIdx.Values;
                 foreach (var site in sites)
-                    for (var idx = 0; idx < site.VertIdxs.Count; ++idx)
+                {
+                    var edges = site.Edges;
+                    for (var idx = 0; idx < edges.Count; ++idx)
                     {
-                        if (idx == site.VertIdxs.Count - 1 && !site.Closed) break;
+                        if (idx == edges.Count - 1 && !site.Closed) break;
                         try
                         {
-                            var edge = site.Edge(idx);
-                            var x1 = edge.OriginPos.x - originOffset.x;
-                            var y1 = edge.OriginPos.y - originOffset.y;
-                            var x2 = edge.NextEdge.OriginPos.x - originOffset.x;
-                            var y2 = edge.NextEdge.OriginPos.y - originOffset.y;
+                            var edge = edges[idx];
+                            var x1 = edge.Origin.x - originOffset.x;
+                            var y1 = edge.Origin.y - originOffset.y;
+                            var x2 = edge.NextEdge.Origin.x - originOffset.x;
+                            var y2 = edge.NextEdge.Origin.y - originOffset.y;
 
                             using (var g = Graphics.FromImage(bitmap))
                             {
@@ -279,23 +281,20 @@ namespace ioDelaunay
                                 var pen = new Pen(m_ColorVor);
                                 g.DrawLine(pen, x1, y1, x2, y2);
 
-                                if (!showVertIdxs) continue;
-                                var textRect = new RectangleF(new PointF(x1, y1), new SizeF(45, 20));
-
-                                g.DrawString(edge.OriginIdx.ToString(), new Font("Small Fonts", fontSize), Brushes.Blue,
-                                    textRect);
                             }
                         }
                         catch (Exception e)
                         {
                         }
                     }
+                }
+                    
             }
 
             //Draw Voronoi Bounds Rect
             if (_v != null)
             {
-                var dBnds = new Rect(_v.DBounds);
+                var dBnds = new Rect(_v.Bounds);
                 dBnds.center = dBnds.center - originOffset;
 
 
@@ -331,6 +330,21 @@ namespace ioDelaunay
             bitmap.Save(path);
         }
 
+        public static void LogToFile(string _fileName, string _text)
+        {
+            var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".txt";
+            using (var fs = File.Create(path))
+            {
+                // writing data in string
+                var info = new UTF8Encoding(true).GetBytes(_text);
+                fs.Write(info, 0, info.Length);
+
+                // writing data in bytes already
+                //byte[] data = new byte[] { 0x0 };
+                //fs.Write(data, 0, data.Length);
+            }
+        }
+        
         public static void LogTri(string _fileName, Delaunay.Triangle[] _tris, string _logAdder = "")
         {
             if (!Enabled) return;

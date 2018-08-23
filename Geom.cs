@@ -69,6 +69,23 @@ namespace ioDelaunay
             return _vals.Max();
         }
 
+        public static float Cross(this Vector2 _a, Vector2 _b)
+        {
+            return _a.x * _b.y - _a.y * _b.x;
+        }
+        
+        public static bool SegmentIntersects(Vector2 _p, Vector2 _q, Vector2 _r, Vector2 _s)
+        {
+            var rxs = _r.Cross(_s);
+            if (rxs == 0) return false;
+
+            var t = (_q - _p).Cross(_s / rxs);
+            var u = (_p - _q).Cross(_r / -rxs);
+            if (t <= 0 || t >= 1) return false;
+            if (u <= 0 || u >= 1) return false;
+            return true;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Circumcircle(Vector2 a, Vector2 b, Vector2 c,
             out float _centX, out float _centY, out float radiusSqr)
