@@ -1,593 +1,496 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
+using System.Security.Policy;
 
 namespace ioDelaunay
 {
-    public partial class Delaunay
+    public class Voronoi
     {
-        public class Voronoi : PolygonGraph
+        public Delaunay D;
+        public Rect Bounds;
+
+        //public Settings settings = new Settings();
+        
+
+        public Dictionary<int, Site> SitesByDIdx = new Dictionary<int, Site>();
+        
+        public Voronoi(Delaunay _d)
         {
-            private readonly Dictionary<int, int> m_CentIdxByTriID; //Delaunay triangle centers;
-            private readonly Dictionary<int, int> m_SiteIDByDVertIdx;
+            D = _d;
+            Bounds = _d.BoundsRect;
+        }
 
-            private readonly Dictionary<int, int> m_TriIDByCentIdx;
-            public Delaunay D;
+        private void BuildInner()
+        {
+            var tri = D.LastTri;
+            var dIdxsDone = new HashSet<int>();
 
-            private Rect m_DBounds = Rect.zero;
-            private readonly Dictionary<int, HashSet<int>> m_SitesContainingVert;
+            var hullIdxs = new HashSet<int>(D.HullEdges.Select(_edge => _edge.OriginIdx));
+            
 
-            public Settings settings;
-
-            public Voronoi(Delaunay _d, Settings _settings = null)
+            //Build Inner Sites
+            while (tri.PrevTri != null)
             {
-                settings = _settings;
-                D = _d;
-
-                m_CentIdxByTriID = new Dictionary<int, int>();
-                m_TriIDByCentIdx = new Dictionary<int, int>();
-                m_SiteIDByDVertIdx = new Dictionary<int, int>();
-                m_SitesContainingVert = new Dictionary<int, HashSet<int>>();
-                for (var dIdx = 0; dIdx < _d.Points.Count; ++dIdx)
-                    m_SitesContainingVert.Add(dIdx, new HashSet<int>());
-                Init();
-            }
-
-            public Site[] Sites => m_Polys.Cast<Site>().ToArray();
-
-            public Rect DBounds
-            {
-                get
+                var edges = new[] {tri.Edge0, tri.Edge1, tri.Edge2};
+                for (int eIdx = 0; eIdx < 3; ++eIdx)
                 {
-                    if (m_DBounds == Rect.zero)
+                    var edge = edges[eIdx];
+                    var edgeOIdx = edge.OriginIdx;
+                    if (dIdxsDone.Contains(edgeOIdx)) continue;
+                    dIdxsDone.Add(edgeOIdx);
+                    if (hullIdxs.Contains(edgeOIdx)) continue;
+
+                    var ptsCW = new List<Vector2>();
+                    var twins = new List<Site.HalfEdge>();
+                    var scanEdge = edge;
+                    do
                     {
-                        var scale = settings.BoundaryExpansionPct < 1f ? 1f : settings.BoundaryExpansionPct;
-                        m_DBounds = new Rect(D.BoundsRect);
-                        var center = m_DBounds.center;
-                        m_DBounds.height = m_DBounds.height * scale;
-                        m_DBounds.width = m_DBounds.width * scale;
-                        m_DBounds.center = center;
-                    }
-
-                    return m_DBounds;
-                }
-            }
-
-            private void Init()
-            {
-                m_CentIdxByTriID.Clear();
-                m_TriIDByCentIdx.Clear();
-                m_SiteIDByDVertIdx.Clear();
-                Points.Clear();
-                m_Polys.Clear();
-                m_SitesContainingVert.Clear();
-                m_BoundsRect = Rect.zero;
-
-                var delTris = D.Triangles();
-                var centers = new List<Vector2>();
-
-                for (var tIdx = 0; tIdx < delTris.Length; ++tIdx)
-                {
-                    var tri = delTris[tIdx];
-                    float r;
-                    Vector2 center = new Vector2(tri.CCX, tri.CCY);
-                    centers.Add(center);
-                    //m_CentIdxByTriID.Add(tri.ID, tIdx); TODO - TO fix for new tri
-                    //m_TriIDByCentIdx.Add(tIdx, tri.ID); TODO - to fix for new triangle def
-                }
-
-                AddVertices(centers);
-            }
-
-            public void BuildSites()
-            {
-                BuildSites(DBounds);
-            }
-
-            private void BuildSites(Rect _bounds)
-            {
-                var siteDelIdxsComplete = new HashSet<int>();
-                var circumCents = new List<Vector2>();
-                var dPts = D.Points;
-
-                //Calculate Circumcenters - TODO do in Delaunay triangulation 4 opt?
-
-
-                //Build sites - internal only?
-                for (var dIdx = 0; dIdx < dPts.Count; ++dIdx)
-                    if (D.HullIdxs.Contains(dIdx))
-                        continue;
-            }
-
-            private void BuildSites2(Rect _bounds)
-            {
-                var sIDsOutBnds = new List<int>();
-
-
-                //Inner sites
-                for (var delIdx = 0; delIdx < D.Points.Count; ++delIdx)
-                {
-                    if (D.HullIdxs.Contains(delIdx)) continue;
-                    var centers = GetCenterIdxsAtSite(delIdx); //TODO REWRITE
-                    var centersCW = SortCW(delIdx, centers.ToArray());
-
-                    var site = new Site(centersCW, delIdx, true, this);
-                    foreach (var vIdx in site.VertIdxs)
-                        if (!_bounds.Contains(Points[vIdx]))
+                        var cc = new Vector2(scanEdge.Triangle.CCX, scanEdge.Triangle.CCY);
+                        ptsCW.Add(cc);
+                        Bounds.Encapsulate(cc);
+                        //Get and set twin
+                        scanEdge = scanEdge.NextEdge.NextEdge;
+                        Site.HalfEdge nbrScan = null;
+                        if (SitesByDIdx.ContainsKey(scanEdge.OriginIdx))
                         {
-                            sIDsOutBnds.Add(site.ID);
-                            break;
+                            
+                            var nbrSite = SitesByDIdx[scanEdge.OriginIdx];
+                            //Get nbr Origin match
+                            nbrScan = nbrSite.FirstEdge;
+                            while (nbrScan.NextEdge.Origin != cc)
+                                nbrScan = nbrScan.NextEdge;
                         }
+
+                        twins.Add(nbrScan);
+                        scanEdge = scanEdge.Twin;
+                        
+                    } while (scanEdge != edge);
+
+
+                    var site = new Site(ptsCW, twins, true);
+                    SitesByDIdx.Add(edgeOIdx, site);
                 }
 
-
-                Site prevSite = null;
-                var firstSiteBackVertIdx = -1;
-                var infiniteEdgeLen = (m_BoundsRect.width + m_BoundsRect.height) / 4f;
-                for (var idx = 0; idx < D.HullIdxs.Count; ++idx)
-                {
-                    var hIdxPrev = D.HullIdxs[idx == 0 ? D.HullIdxs.Count - 1 : idx - 1];
-                    var hIdxCur = D.HullIdxs[idx];
-                    var hIdxNext = D.HullIdxs[idx == D.HullIdxs.Count - 1 ? 0 : idx + 1];
-
-                    var centers = GetCenterIdxsAtSite(hIdxCur);
-
-                    //Get ref vec for CW sort perp to neighbor hull site vec
-                    var vhprev = D.Points[hIdxPrev];
-                    var vhnext = D.Points[hIdxNext];
-                    var nbrHullVec = vhnext - vhprev;
-                    var nbrPerpVec = new Vector2(-nbrHullVec.y, nbrHullVec.x);
-
-                    var refVec = nbrPerpVec.normalized;
-                    var centersCW = SortCW(hIdxCur, centers.ToArray(), refVec).ToList();
-
-                    if (idx == D.HullIdxs.Count - 1) //Handle last site
-                    {
-                        centersCW.Insert(0, firstSiteBackVertIdx);
-                        centersCW.Add(prevSite.Edge(0).OriginIdx);
-                    }
-                    else
-                    {
-                        //Get forward perp line
-                        var hvp0 = D.Points[hIdxCur];
-                        var hvp1 = D.Points[hIdxNext];
-                        var hullVec = (hvp1 - hvp0).normalized;
-                        var perpVec = new Vector2(-hullVec.y, hullVec.x);
-
-                        //Hull Pt
-                        var outFromPt = Points[centersCW[0]];
-
-                        AddVertex(outFromPt + perpVec * infiniteEdgeLen);
-                        centersCW.Insert(0, Points.Count - 1);
-
-
-                        if (prevSite == null)
-                        {
-                            var prevHIdx = D.HullIdxs[D.HullIdxs.Count - 1];
-                            hvp0 = D.Points[prevHIdx];
-                            hvp1 = D.Points[hIdxCur];
-                            hullVec = (hvp1 - hvp0).normalized;
-                            perpVec = new Vector2(-hullVec.y, hullVec.x);
-
-                            //Back HullPt
-                            var outFromPtBack = Points[centersCW[centersCW.Count - 1]];
-
-                            AddVertex(outFromPtBack + perpVec * infiniteEdgeLen);
-
-                            firstSiteBackVertIdx = Points.Count - 1;
-                            centersCW.Add(firstSiteBackVertIdx);
-                        }
-                        else
-                        {
-                            centersCW.Add(prevSite.Edge(0).OriginIdx);
-                        }
-                    }
-
-                    prevSite = new Site(centersCW.ToArray(), hIdxCur, settings.CloseOuterSites, this);
-
-                    //Record sites having verts outside the boundary
-                    foreach (var vIdx in prevSite.VertIdxs)
-                    {
-                        if (_bounds.Contains(Points[vIdx])) continue;
-                        sIDsOutBnds.Add(prevSite.ID);
-                        break;
-                    }
-                }
-
-                /*                
-                {
-                    //TODO DEBUG
-                    DebugVisualizer.Visualize(D, this, "DelVorNoTrim");
-                }
-                */
-
-                if (settings.TrimSitesAtBoundary)
-                    TrimSitesToBndry(sIDsOutBnds, _bounds);
+                tri = tri.PrevTri;
             }
+        }
 
-
-            private void TrimSitesToBndry(List<int> _siteIDs, Rect _bnd)
+        private void BuildOuter()
+        {
+            var infEdgeLen = (D.BoundsRect.width + D.BoundsRect.height) / 4f;  //TODO
+            var hullEdges = D.HullEdges;
+            Site.HalfEdge lastTwin = null;
+            for (int heIdx = 0; heIdx < hullEdges.Count; ++heIdx)
             {
-                var vertIdxsToRemove = new HashSet<int>();
-                var lastSiteID = -1;
-                var firstInVertIdx = -1;
-                var prevOutVertIdx = -1;
-                Site prevSite = null;
-                var curSite = (Site) m_Polys[_siteIDs[0]];
-                var curBndy = BndSide.Invalid;
-                var firstBndy = BndSide.Invalid;
-                var bndyOrigin = new Dictionary<BndSide, Vector2>
-                {
-                    {BndSide.Up, _bnd.min},
-                    {BndSide.Right, new Vector2(_bnd.xMin, _bnd.yMax)},
-                    {BndSide.Down, _bnd.max},
-                    {BndSide.Left, new Vector2(_bnd.xMax, _bnd.yMin)}
-                };
+                var edge = hullEdges[heIdx];
+                var nextEdgeOriginPos = edge.NextEdge.OriginPos;
+                var edgeOIdx = edge.OriginIdx;
+                
+                var ptsCW = new List<Vector2>();
+                var twins = new List<Site.HalfEdge> {null};
+                var scanEdge = edge;
+                
+                //Project first edge perpendicular to hull edge
+                var perpHullVec = GetPerpendicularLeft(edge.OriginPos, nextEdgeOriginPos).normalized;
+                perpHullVec *= infEdgeLen;
+                
+                var cc1 = new Vector2(scanEdge.Triangle.CCX, scanEdge.Triangle.CCY);
+                var firstEdgePos = cc1 + perpHullVec;
+                Bounds.Encapsulate(firstEdgePos);
+                ptsCW.Add(firstEdgePos);
+                
+                //Build middle edges
 
                 while (true)
                 {
-                    curSite.Closed = true;
-
-                    //Get in bndy Transition for SiteA and capture verts to keep and twins
-                    var edgesA = curSite.Edges;
-                    var edgeIn = edgesA[0];
-                    var newVertsCW = new List<int>();
-                    while (_bnd.Contains(edgeIn.NextEdge.OriginPos))
-                        edgeIn = edgeIn.NextEdge;
-                    while (!_bnd.Contains(edgeIn.NextEdge.OriginPos))
-                        edgeIn = edgeIn.NextEdge;
-
-                    var edgeOut = edgeIn.NextEdge;
-                    while (_bnd.Contains(edgeOut.NextEdge.OriginPos))
+                    var cc = new Vector2(scanEdge.Triangle.CCX, scanEdge.Triangle.CCY);
+                    ptsCW.Add(cc);
+                    Bounds.Encapsulate(cc);
+                    //Get and set twin
+                    scanEdge = scanEdge.NextEdge.NextEdge;
+                    if (scanEdge.Twin == null) break;
+                    Site.HalfEdge nbrScan = null;
+                    if (SitesByDIdx.ContainsKey(scanEdge.OriginIdx))
                     {
-                        newVertsCW.Add(edgeOut.OriginIdx);
-                        edgeOut = edgeOut.NextEdge;
+
+                        var nbrSite = SitesByDIdx[scanEdge.OriginIdx];
+                        //Get nbr Origin match
+                        nbrScan = nbrSite.FirstEdge;
+                        while (nbrScan.NextEdge.Origin != cc)
+                            nbrScan = nbrScan.NextEdge;
                     }
 
-                    Site nextSite = null;
-                    if (curSite.ID != lastSiteID)
-                        nextSite = (Site) edgeOut.Twin.Poly;
-
-                    newVertsCW.Add(edgeOut.OriginIdx);
-
-                    //Get out bndy Transition for SiteA and capture verts to delete
-                    var edgeClear = edgeOut.NextEdge;
-                    vertIdxsToRemove.Add(edgeClear.OriginIdx);
-                    while (!_bnd.Contains(edgeClear.NextEdge.OriginPos))
-                    {
-                        edgeClear = edgeClear.NextEdge;
-                        vertIdxsToRemove.Add(edgeClear.OriginIdx);
-                    }
-
-                    //Store first site info for last site connect.
-                    if (prevSite == null)
-                    {
-                        //Get site A in bndy intersection
-                        var intPtIn = GetIntersectionToBndy(edgeIn.OriginPos, edgeIn.AsVector, _bnd, out firstBndy);
-                        curBndy = firstBndy;
-                        AddVertex(intPtIn);
-                        prevOutVertIdx = firstInVertIdx = Points.Count - 1;
-                        lastSiteID = edgeIn.Twin.PolyID;
-                    }
-
-                    if (curSite.ID == lastSiteID)
-                    {
-                        newVertsCW.Add(firstInVertIdx);
-                        newVertsCW.Insert(0, prevOutVertIdx);
-
-                        if (curBndy != firstBndy && settings.AddBoundryCorners)
-                        {
-                            var corner = bndyOrigin[firstBndy];
-                            AddVertex(corner);
-                            newVertsCW.Add(Points.Count - 1);
-                        }
-                    }
-                    else
-                    {
-                        //Get site out bndy intersection
-                        var nextBdy = curBndy;
-                        var intPtOut = GetIntersectionToBndy(edgeOut.OriginPos, edgeOut.AsVector, _bnd, out nextBdy);
-                        AddVertex(intPtOut);
-                        newVertsCW.Add(Points.Count - 1);
-                        newVertsCW.Insert(0, prevOutVertIdx);
-                        prevOutVertIdx = Points.Count - 1;
-
-                        if (nextBdy != curBndy && settings.AddBoundryCorners)
-                        {
-                            var corner = bndyOrigin[curBndy];
-                            AddVertex(corner);
-                            newVertsCW.Add(Points.Count - 1);
-                            curBndy = nextBdy;
-                        }
-                    }
-
-                    curSite.Reform(newVertsCW.ToArray());
-                    curSite.Closed = settings.CloseOuterSites;
-
-                    if (curSite.ID != lastSiteID)
-                    {
-                        prevSite = curSite;
-                        curSite = nextSite;
-                        continue;
-                    }
-
-                    break;
+                    twins.Add(nbrScan);
+                    scanEdge = scanEdge.Twin;
                 }
-
-                //DebugVisualizer.Visualize(D, this, "VorOuter");
-                CleanVerts();
-
-                //DebugVisualizer.Visualize(D, this, "VorPostVertRemove");
-            }
-
-            private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd)
-            {
-                BndSide unused;
-                return GetIntersectionToBndy(_fromPt, _fromDir, _bnd, out unused);
-            }
-
-            //TODO INEFFICIENT?
-            private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd,
-                out BndSide _bndSide)
-            {
-                _bndSide = BndSide.Invalid;
-                var vBndCorners = new[]
-                {
-                    _bnd.min,
-                    new Vector2(_bnd.xMin, _bnd.yMax),
-                    _bnd.max,
-                    new Vector2(_bnd.xMax, _bnd.yMin)
-                };
-
-                var vBndVecs = new[]
-                {
-                    vBndCorners[1] - vBndCorners[0], //Up
-                    vBndCorners[2] - vBndCorners[1], //Right
-                    vBndCorners[3] - vBndCorners[2], //Down
-                    vBndCorners[0] - vBndCorners[3] //Left
-                };
-                var minDist = float.PositiveInfinity;
-                var intPt = Vector2.positiveInfinity;
-                for (var bEdgeIdx = 0; bEdgeIdx < 4; ++bEdgeIdx) //TODO this is inefficient
-                {
-                    var intsct = Intersect(_fromDir, vBndVecs[bEdgeIdx], _fromPt, vBndCorners[bEdgeIdx]);
-                    //if (intsct.sqrMagnitude == float.PositiveInfinity) continue;
-                    var distSqr = (intsct - _fromPt).sqrMagnitude;
-                    if (distSqr < minDist)
-                    {
-                        minDist = distSqr;
-                        intPt = intsct;
-                        _bndSide = (BndSide) bEdgeIdx;
-                    }
-                }
-
-                return intPt;
-            }
-
-            public void LloydRelax(int _iters = 1)
-            {
-                for (var iter = 0; iter < _iters; ++iter)
-                {
-                    var centroids = new List<Vector2>();
-                    foreach (var polykvp in m_Polys)
-                    {
-                        var site = (Site) polykvp;
-                        var centroid = Geom.CentroidOfPoly(site.VertIdxs.Select(_vIdx => Points[_vIdx]));
-                        centroids.Add(centroid);
-                    }
-
-                    D.ReTriangulate(centroids);
-                    Init();
-                    BuildSites(DBounds);
-                }
-            }
-
-            private static Vector2 Intersect(Vector2 _rayA, Vector2 _rayB, Vector2 _originA, Vector2 _originB)
-            {
-                var dx = _originB.x - _originA.x;
-                var dy = _originB.y - _originA.y;
-                var det = _rayB.x * _rayA.y - _rayB.y * _rayA.x;
-                if (det == 0)
-                    return Vector2.positiveInfinity;
-                var u = (dy * _rayB.x - dx * _rayB.y) / det;
-                var v = (dy * _rayA.x - dx * _rayA.y) / det;
-                if (u < 0 || v < 0)
-                    return Vector2.positiveInfinity;
-                return new Vector2(_originA.x + _rayA.x * u, _originA.y + _rayA.y * u);
-            }
-
-            private HashSet<int> GetCenterIdxsAtSite(int _siteVertIdx)
-            {
-                var triIDs = m_SitesContainingVert[_siteVertIdx];
-                var centerIdxs = new HashSet<int>();
-                foreach (var triID in triIDs)
-                    centerIdxs.Add(m_CentIdxByTriID[triID]);
-
-                return centerIdxs;
-            }
-
-
-            private int[] SortCW(int _siteVertIdx, int[] _vorVertIdxs)
-            {
-                return SortCW(_siteVertIdx, _vorVertIdxs, Vector2.right);
-            }
-
-            private int[] SortCW(int _siteVertIdx, int[] _vorVertIdxs, Vector2 _refVec)
-            {
-                var sitePos = D.Points[_siteVertIdx];
-                var centerIdxsCW = new SortedList<float, int>(new DuplicateKeyComparer<float>());
-                foreach (var vorVertIdx in _vorVertIdxs)
-                {
-                    var triCentPos = Points[vorVertIdx];
-                    var vecCent = (triCentPos - sitePos).normalized;
-                    var theta = _refVec.AngleCW(vecCent);
-                    centerIdxsCW.Add(theta, vorVertIdx); //TODO handle theta collisions
-                }
-
-                return centerIdxsCW.Values.ToArray();
-            }
-
-            public class Settings
-            {
-                /// <summary>
-                ///     Close outer voronoi sites?
-                /// </summary>
-                public bool CloseOuterSites = true;
-
-                private bool m_AddBoundaryCorners = true;
-
-                private float m_BoundaryExpansionPct = 1.2f;
-
-                /// <summary>
-                ///     Trim sites at some pct away from delaunay boundary extents.
-                ///     Note that there is an increased chance of voronoi site edge intersection at
-                ///     distance based on Delaunay hull angle limit.
-                /// </summary>
-                public bool TrimSitesAtBoundary = true;
-
-                /// <summary>
-                ///     Percent beyond Delaunay bounds at which trim will occur if trim is enabled.
-                ///     Must be greater than 1.0
-                /// </summary>
-                public float BoundaryExpansionPct
-                {
-                    get { return m_BoundaryExpansionPct; }
-                    set
-                    {
-                        var pct = value;
-                        m_BoundaryExpansionPct = pct < 1.0 ? 1.0f : pct;
-                    }
-                }
-
-                /// <summary>
-                ///     Add corners to voronoi sites at boundary corners?
-                ///     Ignored if Trim is false or if CloseOuterSites is false.
-                /// </summary>
-                public bool AddBoundryCorners
-                {
-                    get { return TrimSitesAtBoundary && CloseOuterSites && m_AddBoundaryCorners; }
-
-                    set { m_AddBoundaryCorners = value; }
-                }
-            }
-
-            private enum BndSide
-            {
-                Invalid = -1,
-                Up = 0,
-                Right = 1,
-                Down = 2,
-                Left = 3
-            }
-
-            public class Site : Poly, IVoronoiObj
-            {
-                public readonly int VertDelIdx;
-
-                public Site(int[] _vertIdxs, int _vertDelIdx, bool _closed, Voronoi _v) : base(
-                    _vertIdxs, _closed, _v)
-                {
-                    V = _v;
-                    VertDelIdx = _vertDelIdx;
-                    V.m_SiteIDByDVertIdx.Add(_vertDelIdx, ID);
-                    foreach (var vIdx in _vertIdxs)
-                        _v.m_SitesContainingVert[vIdx].Add(ID);
-                }
-
-                public Voronoi V { get; }
-
-                //TODO Optimize
-                private void FindAndSetTwin(int _edgeIdx)
-                {
-                    var vA1Idx = -1;
-                    if (_edgeIdx == Edges.Count - 1)
-                    {
-                        if (!Closed) return;
-                        vA1Idx = Edges[0].OriginIdx;
-                    }
-                    else
-                    {
-                        vA1Idx = Edges[_edgeIdx + 1].OriginIdx;
-                    }
-
-                    //Twins
-                    var vA0Idx = Edges[_edgeIdx].OriginIdx;
-                    var nbrPolys = V.m_SitesContainingVert[vA0Idx].Intersect(V.m_SitesContainingVert[vA1Idx])
-                        .Except(new HashSet<int> {ID});
-
-                    //DEBUG
-                    //if(nbrPolys.Count > 1)
-                    //    Console.WriteLine("Debug");
-
-
-                    if (nbrPolys.Count() == 1)
-                    {
-                        var nbrPoly = V.m_Polys[nbrPolys.First()];
-                        var twin = nbrPoly.EdgeWithOrigin(vA1Idx);
-                        if (twin.NextEdge.OriginIdx != vA0Idx)
-                            twin = nbrPoly.EdgeWithOrigin(vA0Idx);
-                        Edges[_edgeIdx].Twin = twin;
-                    }
-                }
-
-
-                // TODO - FindAndSetTwin should be explicit for optimization
-
-                public void Reform(int[] _vertIdxsOrdered)
-                {
-                    if (Edges != null)
-                        for (var eIdx = 0; eIdx < Edges.Count; ++eIdx)
-                        {
-                            V.m_SitesContainingVert[Edges[eIdx].OriginIdx].Remove(ID);
-                            if (Edges[eIdx].Twin != null)
-                                Edges[eIdx].Twin.Twin = null;
-                        }
-
-                    Edges = new List<HalfEdge>();
-
-                    //m_OriginToEdgeIdx = new Dictionary<int, int>();
-
-                    var originIdx = _vertIdxsOrdered[0];
-                    Edges.Add(new HalfEdge(this, _vertIdxsOrdered[0], G));
-                    //m_OriginToEdgeIdx.Add(originIdx, 0);
-                    V.m_SitesContainingVert[originIdx].Add(ID);
-                    for (var eIdx = 1; eIdx < _vertIdxsOrdered.Length; ++eIdx)
-                    {
-                        originIdx = _vertIdxsOrdered[eIdx];
-                        Edges.Add(new HalfEdge(this, originIdx, G));
-                        Edges[eIdx - 1].NextEdge = Edges[eIdx];
-                        FindAndSetTwin(eIdx - 1);
-                        //m_OriginToEdgeIdx.Add(originIdx, eIdx);
-                        V.m_SitesContainingVert[originIdx].Add(ID);
-                    }
-
-                    if (Closed)
-                    {
-                        FindAndSetTwin(Edges.Count - 1);
-                        Edges[Edges.Count - 1].NextEdge = Edges[0];
-                    }
-                }
-            }
-
-            private interface IVoronoiObj
-            {
-                Voronoi V { get; }
-            }
-            
-            /// <summary>
-            ///     Comparer for comparing two keys, handling equality as beeing greater
-            ///     Use this Comparer e.g. with SortedLists or SortedDictionaries, that don't allow duplicate keys
-            /// </summary>
-            /// <typeparam name="TKey"></typeparam>
-            internal class DuplicateKeyComparer<TKey> : IComparer<TKey> where TKey : IComparable
-            {
-                public int Compare(TKey _x, TKey _y)
-                {
-                    var result = _x.CompareTo(_y);
-
-                    return result == 0 ? 1 : result;
-                }
+                //Add last twin
+                twins.Add(lastTwin);
+                
+                //Project last edge perpendicular to hull edge
+                perpHullVec = GetPerpendicularLeft(scanEdge.OriginPos, scanEdge.NextEdge.OriginPos).normalized;
+                perpHullVec *= infEdgeLen;
+                
+                var ccLast = new Vector2(scanEdge.Triangle.CCX, scanEdge.Triangle.CCY);
+                var lastEdgePos = ccLast + perpHullVec;
+                Bounds.Encapsulate(lastEdgePos);
+                ptsCW.Add(lastEdgePos);
+                twins.Add(null);
+                
+                var site = new Site(ptsCW, twins, false); //TODO store dIDX?
+                lastTwin = twins[0];
+                SitesByDIdx.Add(edgeOIdx, site);
             }
         }
+
+        private Vector2 GetPerpendicularLeft(Vector2 _a, Vector2 _b) //TODO remove
+        {
+            var hullVec = _b - _a;
+            return new Vector2(-hullVec.y, hullVec.x);
+        }
+        
+        public void Build()
+        {
+            SitesByDIdx.Clear();
+            BuildInner();
+            BuildOuter();
+                
+        }
+
+        public void TrimSitesToBndry(Rect _bndry, bool _closeAtTrim = true)
+        {
+            var trimBnds = _bndry;
+            
+            //Scan for sites needing trim and for removal
+            var sitesToTrim = new HashSet<int>();
+            var sitesToRemove = new HashSet<int>();
+
+            foreach(var dIdx in SitesByDIdx.Keys)
+            {
+                var site = SitesByDIdx[dIdx];
+                var wasClosed = site.Closed;
+                site.Closed = true;
+
+                var scanEdge = site.FirstEdge;
+                var hasIn = false;
+                var hasOut = false;
+                do
+                {
+                    if (trimBnds.Contains(scanEdge.Origin))
+                        hasIn = true;
+                    else
+                        hasOut = true;
+                    scanEdge = scanEdge.NextEdge;
+                } while (scanEdge != site.FirstEdge);
+
+                if (hasIn && hasOut) 
+                    sitesToTrim.Add(dIdx);
+                else if (hasOut && !hasIn)
+                    sitesToRemove.Add(dIdx);
+
+                site.Closed = wasClosed;
+            }
+            
+            var bndyOrigin = new Dictionary<BndSide, Vector2>
+            {
+                {BndSide.Up, trimBnds.min},
+                {BndSide.Right, new Vector2(trimBnds.xMin, trimBnds.yMax)},
+                {BndSide.Down, trimBnds.max},
+                {BndSide.Left, new Vector2(trimBnds.xMax, trimBnds.yMin)}
+            };
+            
+            //Trim Sites
+            foreach (int dIdx in sitesToTrim)
+            {
+                var site = SitesByDIdx[dIdx];
+                site.Closed = true;
+
+                var scanEdge = site.FirstEdge;
+                while (!trimBnds.Contains(scanEdge.Origin))
+                    scanEdge = scanEdge.NextEdge;
+                
+                //Find exit bnds intersection
+                while (trimBnds.Contains(scanEdge.NextEdge.Origin))
+                    scanEdge = scanEdge.NextEdge;
+
+                var exitEdge = scanEdge;
+                var intFrom = exitEdge.Origin;
+                var intVec = exitEdge.NextEdge.Origin - intFrom;
+                BndSide exitSide;
+
+                var exitIntPt = GetIntersectionToBndy(intFrom, intVec, trimBnds, out exitSide);
+                
+                //Find enter bnds interection
+                while (!trimBnds.Contains(scanEdge.NextEdge.Origin))
+                    scanEdge = scanEdge.NextEdge;
+
+                var enterEdge = scanEdge;
+                intFrom = enterEdge.NextEdge.Origin;
+                intVec = enterEdge.Origin - intFrom;
+                BndSide enterSide;
+
+                var enterIntPt = GetIntersectionToBndy(intFrom, intVec, trimBnds, out enterSide);
+
+                if (exitSide == enterSide || !_closeAtTrim)
+                {
+                    var newBndEdge = new Site.HalfEdge(exitIntPt);
+                    exitEdge.NextEdge = newBndEdge;
+                    newBndEdge.NextEdge = enterEdge;
+                    enterEdge.Origin = enterIntPt;
+                    site.FirstEdge = enterEdge;
+                }
+                else
+                {
+                    var newBndEdgeA = new Site.HalfEdge(exitIntPt);
+                    var newBndEdgeB = new Site.HalfEdge(bndyOrigin[enterSide]);
+                    exitEdge.NextEdge = newBndEdgeA;
+                    newBndEdgeA.NextEdge = newBndEdgeB;
+                    enterEdge.Origin = enterIntPt;
+                    newBndEdgeB.NextEdge = enterEdge;
+                    site.FirstEdge = enterEdge;
+                }
+
+
+
+                site.Closed = _closeAtTrim;
+            }
+            
+            //Clean up sites outside of boundary
+            foreach (int dIdx in sitesToRemove)  //TODO need to do more than remove from sites list? (Memory)
+            {
+                var site = SitesByDIdx[dIdx];
+
+                foreach (var edge in site.Edges)
+                {
+                    edge.NextEdge = null;
+                    edge.Twin = null;
+                }
+
+                site.FirstEdge = null;
+
+                SitesByDIdx.Remove(dIdx);
+
+            }
+        }
+
+        public void LloydRelax(Rect _trimBndy, int _iters = 1)
+        {
+            for (var iter = 0; iter < _iters; ++iter)
+            {
+                var centroids = new List<Vector2>();
+                foreach (var siteIdx in SitesByDIdx.Keys)
+                {
+                    var site = (Site) SitesByDIdx[siteIdx];
+                    var centroid = Geom.CentroidOfPoly(site.Edges.Select(_edge => _edge.Origin));
+                    centroids.Add(centroid);
+                }
+
+                D.Triangulate(centroids);
+                Build();
+                TrimSitesToBndry(_trimBndy);
+            }
+        }
+        
+        private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd)
+        {
+            BndSide unused;
+            return GetIntersectionToBndy(_fromPt, _fromDir, _bnd, out unused);
+        }
+        
+        //TODO INEFFICIENT
+        private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd,
+            out BndSide _bndSide)
+        {
+            _bndSide = BndSide.Invalid;
+            var vBndCorners = new[]
+            {
+                _bnd.min,
+                new Vector2(_bnd.xMin, _bnd.yMax),
+                _bnd.max,
+                new Vector2(_bnd.xMax, _bnd.yMin)
+            };
+
+            var vBndVecs = new[]
+            {
+                vBndCorners[1] - vBndCorners[0], //Up
+                vBndCorners[2] - vBndCorners[1], //Right
+                vBndCorners[3] - vBndCorners[2], //Down
+                vBndCorners[0] - vBndCorners[3] //Left
+            };
+            var minDist = float.PositiveInfinity;
+            var intPt = Vector2.positiveInfinity;
+            for (var bEdgeIdx = 0; bEdgeIdx < 4; ++bEdgeIdx) //TODO this is inefficient
+            {
+                var intsct = Intersect(_fromDir, vBndVecs[bEdgeIdx], _fromPt, vBndCorners[bEdgeIdx]);
+                //if (intsct.sqrMagnitude == float.PositiveInfinity) continue;
+                var distSqr = (intsct - _fromPt).sqrMagnitude;
+                if (distSqr < minDist)
+                {
+                    minDist = distSqr;
+                    intPt = intsct;
+                    _bndSide = (BndSide) bEdgeIdx;
+                }
+            }
+            
+            
+
+
+            return intPt;
+        }
+        
+        private static Vector2 Intersect(Vector2 _rayA, Vector2 _rayB, Vector2 _originA, Vector2 _originB)
+        {
+            var dx = _originB.x - _originA.x;
+            var dy = _originB.y - _originA.y;
+            var det = _rayB.x * _rayA.y - _rayB.y * _rayA.x;
+            if (det == 0)
+                return Vector2.positiveInfinity;
+            var u = (dy * _rayB.x - dx * _rayB.y) / det;
+            var v = (dy * _rayA.x - dx * _rayA.y) / det;
+            if (u < 0 || v < 0)
+                return Vector2.positiveInfinity;
+            return new Vector2(_originA.x + _rayA.x * u, _originA.y + _rayA.y * u);
+        }
+        
+        private enum BndSide
+        {
+            Invalid = -1,
+            Up = 0,
+            Right = 1,
+            Down = 2,
+            Left = 3
+        }
+
+        
+        public class Site
+        {
+            public HalfEdge FirstEdge;
+
+            public bool Closed
+            {
+                get { return m_Closed; }
+                set
+                {
+                    if (m_Closed == value) return;
+                    //Find last edge
+                    var edgeScan = FirstEdge;
+                    var target = m_Closed ? FirstEdge : null;
+                    while (edgeScan.NextEdge != target)
+                        edgeScan = edgeScan.NextEdge;
+
+                    edgeScan.NextEdge = m_Closed ? null : FirstEdge;
+                    
+                    m_Closed = value;
+                }
+            }
+
+            private bool m_Closed;
+            
+            
+            public List<HalfEdge> Edges
+            {
+                get
+                {
+                    var eList = new List<HalfEdge> {FirstEdge};
+                    var eScan = FirstEdge.NextEdge;
+                    while(eScan != FirstEdge && eScan != null)
+                    {
+                        eList.Add(eScan);
+                        eScan = eScan.NextEdge;
+                    }
+
+                    return eList;
+                }
+            }
+
+            public Site(List<Vector2> _ptsCW, List<HalfEdge> _twins, bool _closed)
+            {
+                m_Closed = _closed;
+                var prevEdge = FirstEdge = new HalfEdge(_ptsCW[0]);
+                var prevTwin = _twins[0];
+                if (prevTwin != null)
+                {
+                    prevEdge.Twin = prevTwin;
+                    prevTwin.Twin = prevEdge;
+                }
+
+                HalfEdge edge = null;
+                HalfEdge twin = null;
+                for (int eIdx = 1; eIdx < _ptsCW.Count; ++eIdx)
+                {
+                    edge = new HalfEdge(_ptsCW[eIdx]);
+                    twin = _twins[eIdx];
+                    if (twin != null)
+                    {
+                        edge.Twin = twin;
+                        twin.Twin = edge;
+                    }
+
+                    prevEdge.NextEdge = edge;
+                    prevEdge = edge;
+                }
+
+                if(m_Closed)
+                    edge.NextEdge = FirstEdge;
+
+            }
+
+            public void Reform(List<Vector2> _pts, List<HalfEdge> _twins)
+            {
+                var edgeScan = FirstEdge;
+                var lastEdge = edgeScan;
+                for (int pIdx = 0; pIdx < _pts.Count; ++pIdx)
+                {
+                    edgeScan.Origin = _pts[pIdx];
+                    edgeScan.Twin = _twins[pIdx];
+                    if (_twins[pIdx] != null)
+                        _twins[pIdx].Twin = edgeScan;
+
+
+                    if (pIdx + 1 != _pts.Count && edgeScan.NextEdge != null && edgeScan.NextEdge != FirstEdge)
+                        edgeScan.NextEdge = new HalfEdge(Vector2.zero);
+                    lastEdge = edgeScan;
+                    edgeScan = edgeScan.NextEdge;
+                }
+
+                lastEdge.NextEdge = m_Closed ? FirstEdge : null;
+            }
+            
+            public class HalfEdge
+            {
+                public Vector2 Origin;
+                public HalfEdge NextEdge;
+                public HalfEdge Twin;
+
+                public HalfEdge(Vector2 _origin)
+                {
+                    Origin = _origin;
+                }
+                
+            }
+        }
+        
+        public class Settings
+        {
+            /// <summary>
+            ///     Close outer voronoi sites?
+            /// </summary>
+            public bool CloseOuterSites = true;
+
+            private bool m_AddBoundaryCorners = true;
+
+
+            /// <summary>
+            ///     Add corners to voronoi sites at boundary corners?
+            ///     Ignored if CloseOuterSites is false.
+            /// </summary>
+            public bool AddBoundryCorners
+            {
+                get { return CloseOuterSites && m_AddBoundaryCorners; }
+
+                set { m_AddBoundaryCorners = value; }
+            }
+        }
+
+        
     }
 }

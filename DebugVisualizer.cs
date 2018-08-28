@@ -17,7 +17,7 @@ namespace ioDelaunay
         private static Color m_ColorFont = Color.BurlyWood;
         private static readonly Color m_ColorCircles = Color.Aquamarine;
         private static readonly Color m_ColorVor = Color.DodgerBlue;
-        public static bool Enabled = true;
+        public static bool Enabled = false;
         public static Vector2 OriginOffsetOverride = Vector2.positiveInfinity;
         public static Random rnd = new Random((int) DateTime.Now.Ticks);
 
@@ -27,10 +27,10 @@ namespace ioDelaunay
             if (_depth - 1 == 0)
                 return tris;
 
-            if (_edge.NextEdge.m_Twin != null)
-                tris.UnionWith(RecGetTris(_edge.NextEdge.m_Twin, _depth - 1));
-            if (_edge.NextEdge.NextEdge.m_Twin != null)
-                tris.UnionWith(RecGetTris(_edge.NextEdge.NextEdge.m_Twin, _depth - 1));
+            if (_edge.NextEdge.Twin != null)
+                tris.UnionWith(RecGetTris(_edge.NextEdge.Twin, _depth - 1));
+            if (_edge.NextEdge.NextEdge.Twin != null)
+                tris.UnionWith(RecGetTris(_edge.NextEdge.NextEdge.Twin, _depth - 1));
 
             return tris;
         }
@@ -40,14 +40,14 @@ namespace ioDelaunay
             if (!Enabled) return;
             var trisToRender = new HashSet<Delaunay.Triangle> {_edge.Triangle};
 
-            if (_edge.m_Twin != null)
-                trisToRender.UnionWith(RecGetTris(_edge.m_Twin, _depth));
+            if (_edge.Twin != null)
+                trisToRender.UnionWith(RecGetTris(_edge.Twin, _depth));
 
-            if (_edge.NextEdge.m_Twin != null)
-                trisToRender.UnionWith(RecGetTris(_edge.NextEdge.m_Twin, _depth));
+            if (_edge.NextEdge.Twin != null)
+                trisToRender.UnionWith(RecGetTris(_edge.NextEdge.Twin, _depth));
 
-            if (_edge.NextEdge.NextEdge.m_Twin != null)
-                trisToRender.UnionWith(RecGetTris(_edge.NextEdge.NextEdge.m_Twin, _depth));
+            if (_edge.NextEdge.NextEdge.Twin != null)
+                trisToRender.UnionWith(RecGetTris(_edge.NextEdge.NextEdge.Twin, _depth));
 
             var triList = trisToRender.ToList();
             var bounds = new Rect(Rect.zero);
@@ -141,7 +141,7 @@ namespace ioDelaunay
             //LogTri(_fileName + ".txt", triList.ToArray());
         }
 
-        public static void Visualize(Delaunay _d, Voronoi2 _v = null, string _fileName = "debugMesh")
+        public static void Visualize(Delaunay _d, Voronoi _v = null, string _fileName = "debugMesh")
         {
             if (!Enabled) return;
             //var bitmap = new Bitmap((int) (_d.BoundsRect.width * 1.2f), (int) (_d.BoundsRect.height * 1.2f));
@@ -156,8 +156,6 @@ namespace ioDelaunay
                 originOffset.x += OriginOffsetOverride.x - bitmap.Width / 2f;
                 originOffset.y += OriginOffsetOverride.y - bitmap.Height / 2f;
             }
-
-
 
             //Draw Mesh
             var tris = _d.Triangles();
@@ -187,6 +185,7 @@ namespace ioDelaunay
                 }
 
             //Draw Frontier
+            /*
             var cs = (CircleSweep) _d.triangulator;
             var fPt = cs.frontier.LastAddedFPt;
             var fpStart = fPt;
@@ -216,6 +215,7 @@ namespace ioDelaunay
                 fPt = fPt.Right;
                 firstMoveDone = true;
             }
+            */
 
 
             //Draw Circumcircles
@@ -244,6 +244,7 @@ namespace ioDelaunay
             */
 
             //Draw Origin
+            /*
             using (var g = Graphics.FromImage(bitmap))
             {
                 g.SmoothingMode = SmoothingMode.None;
@@ -254,6 +255,7 @@ namespace ioDelaunay
                 var y1 = cs.Origin.y - originOffset.y;
                 g.FillRectangle(Brushes.Cyan, x1, y1, 2, 2);
             }
+            */
 
             //Voronoi on top
             if (_v != null)
@@ -265,26 +267,20 @@ namespace ioDelaunay
                     for (var idx = 0; idx < edges.Count; ++idx)
                     {
                         if (idx == edges.Count - 1 && !site.Closed) break;
-                        try
-                        {
-                            var edge = edges[idx];
-                            var x1 = edge.Origin.x - originOffset.x;
-                            var y1 = edge.Origin.y - originOffset.y;
-                            var x2 = edge.NextEdge.Origin.x - originOffset.x;
-                            var y2 = edge.NextEdge.Origin.y - originOffset.y;
+                        var edge = edges[idx];
+                        var x1 = edge.Origin.x - originOffset.x;
+                        var y1 = edge.Origin.y - originOffset.y;
+                        var x2 = edge.NextEdge.Origin.x - originOffset.x;
+                        var y2 = edge.NextEdge.Origin.y - originOffset.y;
 
-                            using (var g = Graphics.FromImage(bitmap))
-                            {
-                                g.SmoothingMode = SmoothingMode.None;
-                                g.InterpolationMode = InterpolationMode.Low;
-                                g.PixelOffsetMode = PixelOffsetMode.None;
-                                var pen = new Pen(m_ColorVor);
-                                g.DrawLine(pen, x1, y1, x2, y2);
-
-                            }
-                        }
-                        catch (Exception e)
+                        using (var g = Graphics.FromImage(bitmap))
                         {
+                            g.SmoothingMode = SmoothingMode.None;
+                            g.InterpolationMode = InterpolationMode.Low;
+                            g.PixelOffsetMode = PixelOffsetMode.None;
+                            var pen = new Pen(m_ColorVor);
+                            g.DrawLine(pen, x1, y1, x2, y2);
+
                         }
                     }
                 }
@@ -330,6 +326,11 @@ namespace ioDelaunay
             bitmap.Save(path);
         }
 
+        public static float ToDeg(float _radians)
+        {
+            return _radians * 180f / (float) Math.PI;
+        }
+        
         public static void LogToFile(string _fileName, string _text)
         {
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".txt";
@@ -367,7 +368,7 @@ namespace ioDelaunay
                     var vecRt = v1 - v0;
                     var vecLt = v2 - v0;
                     var angle = vecRt.AngleCW(vecLt);
-                    sb.AppendLine(" Angle: " + angle + " : " + Geom.ToDeg(angle));
+                    sb.AppendLine(" Angle: " + angle + " : " + ToDeg(angle));
                     sb.AppendLine();
                 }
             }
@@ -394,52 +395,6 @@ namespace ioDelaunay
             var g = (int) ((0.2f + _r.NextDouble() * 0.8f) * 255);
             var b = (int) ((0.2f + _r.NextDouble() * 0.8f) * 255);
             return Color.FromArgb(r, g, b);
-        }
-
-        public static void Visualize(Delaunay.Voronoi _v, string _fileName = "debugVoronoi2")
-        {
-            if (!Enabled) return;
-            var bitmap = new Bitmap((int) (_v.BoundsRect.width * 1.2f), (int) (_v.BoundsRect.height * 1.2f));
-            var originOffset = _v.BoundsRect.min;
-            var vectTextDrawn = new HashSet<int>();
-
-
-            //Draw Sites
-            var rand = new Random((int) DateTime.Now.Ticks);
-            var sites = _v.Sites;
-            foreach (var site in sites)
-                for (var idx = 0; idx < site.VertIdxs.Count; ++idx)
-                    try
-                    {
-                        var edge = site.Edge(idx);
-                        var x1 = edge.OriginPos.x - originOffset.x;
-                        var y1 = edge.OriginPos.y - originOffset.y;
-                        var x2 = edge.NextEdge.OriginPos.x - originOffset.x;
-                        var y2 = edge.NextEdge.OriginPos.y - originOffset.y;
-
-                        using (var g = Graphics.FromImage(bitmap))
-                        {
-                            g.SmoothingMode = SmoothingMode.None;
-                            g.InterpolationMode = InterpolationMode.Low;
-                            g.PixelOffsetMode = PixelOffsetMode.None;
-                            var pen = new Pen(RandColor(rand));
-                            g.DrawLine(pen, x1, y1, x2, y2);
-
-                            if (!showVertIdxs) continue;
-                            var textRect = new RectangleF(new PointF(x1, y1), new SizeF(45, 20));
-
-                            g.DrawString(edge.OriginIdx.ToString(), new Font("Small Fonts", fontSize),
-                                Brushes.BurlyWood,
-                                textRect);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                    }
-
-
-            var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".bmp";
-            bitmap.Save(path);
         }
 
         public static Bitmap CropImage(Bitmap source, Rectangle section)

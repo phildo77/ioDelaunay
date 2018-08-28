@@ -26,7 +26,7 @@ namespace ioDelaunay
             while (m_EdgeStack.Count != 0)
             {
                 var curEdgeA0 = m_EdgeStack.Pop();
-                var curTwinB0 = curEdgeA0.m_Twin;
+                var curTwinB0 = curEdgeA0.Twin;
                 var pts = curEdgeA0.D.Points;
                 var triA = curEdgeA0.Triangle;
                 var triB = curTwinB0.Triangle;
@@ -91,7 +91,7 @@ namespace ioDelaunay
                 }
 
                 foreach (var oEdge in m_RefOuterEdges)
-                    if (oEdge.m_Twin != null)
+                    if (oEdge.Twin != null)
                         m_EdgeStack.Push(oEdge);
             }
         }
@@ -103,7 +103,7 @@ namespace ioDelaunay
             var ab0 = pts[_edge.OriginIdx];
             var ab1 = pts[_edge.NextEdge.OriginIdx];
             var a2 = pts[_edge.NextEdge.NextEdge.OriginIdx];
-            var b2 = pts[_edge.m_Twin.NextEdge.NextEdge.OriginIdx];
+            var b2 = pts[_edge.Twin.NextEdge.NextEdge.OriginIdx];
 
             var nab0 = RndLinXfrm(ab0);
             var nab1 = RndLinXfrm(ab1);
@@ -125,7 +125,7 @@ namespace ioDelaunay
         private bool AreCocircular(Triangle.HalfEdge _edge)
         {
             var triA = _edge.Triangle;
-            var triB = _edge.m_Twin.Triangle;
+            var triB = _edge.Twin.Triangle;
 
             var ccxChk = triA.CCX.ApproxEqual(triB.CCX, MinFloatingPointErr);
             var ccyChk = triA.CCY.ApproxEqual(triB.CCY, MinFloatingPointErr);

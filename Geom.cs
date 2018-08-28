@@ -7,6 +7,7 @@ namespace ioDelaunay
 {
     public static class Geom
     {
+        /*
         public static bool Circumcircle2(Vector2 p0, Vector2 p1, Vector2 p2, out Vector2 center,
             out float radiusSqr)
         {
@@ -36,7 +37,8 @@ namespace ioDelaunay
             radiusSqr = (float) ((dp2x - cent_x) * (dp2x - cent_x) + (dp2y - cent_y) * (dp2y - cent_y));
             return true;
         }
-
+        */
+        
         public static Vector2 CentroidOfPoly(IEnumerable<Vector2> _pts)
         {
             var count = 0;
@@ -49,42 +51,9 @@ namespace ioDelaunay
                 ySum = ySum + pt.y;
             }
 
-            return new Vector2(xSum / count, ySum / count);
-            /*
-            var count = _pts.Count();
-            var x = _pts.Sum(_pt => _pt.x) / count;
-            var y = _pts.Sum(_pt => _pt.y) / count;
-            return new Vector2f(x, y);
-            */
+            return new Vector2(xSum / (float) count, ySum / (float) count);
         }
 
-
-        private static T Min<T>(params T[] _vals)
-        {
-            return _vals.Min();
-        }
-
-        private static T Max<T>(params T[] _vals)
-        {
-            return _vals.Max();
-        }
-
-        public static float Cross(this Vector2 _a, Vector2 _b)
-        {
-            return _a.x * _b.y - _a.y * _b.x;
-        }
-        
-        public static bool SegmentIntersects(Vector2 _p, Vector2 _q, Vector2 _r, Vector2 _s)
-        {
-            var rxs = _r.Cross(_s);
-            if (rxs == 0) return false;
-
-            var t = (_q - _p).Cross(_s / rxs);
-            var u = (_p - _q).Cross(_r / -rxs);
-            if (t <= 0 || t >= 1) return false;
-            if (u <= 0 || u >= 1) return false;
-            return true;
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Circumcircle(Vector2 a, Vector2 b, Vector2 c,
@@ -98,7 +67,7 @@ namespace ioDelaunay
             var F = C * (a.x + c.x) + D * (a.y + c.y);
             var G = 2 * (A * (c.y - b.y) - B * (c.x - b.x));
 
-            float minx, miny, dx, dy;
+            float dx, dy;
 
             _centX = (D * E - B * F) / G;
             _centY = (A * F - C * E) / G;
@@ -111,6 +80,7 @@ namespace ioDelaunay
              * extremes and use the midpoint as the center of the circumcircle. */
 
             /*
+            float minx, miny;
             if(Math.Abs(G) < 0.000001)
             {
                 minx = Min(a.x, b.x, c.x);
@@ -134,79 +104,15 @@ namespace ioDelaunay
             */
         }
 
-        public static bool AreColinear(Vector2 _v0, Vector2 _v1, Vector2 _v2, float _epsilon) //TODO Dynamic Epsilon
+        public static bool AreColinear(Vector2 _v0, Vector2 _v1, Vector2 _v2, float _epsilon) 
         {
             return ((_v0.y - _v1.y) * (_v0.x - _v2.x)).ApproxEqual((_v0.y - _v2.y) * (_v0.x - _v1.x), _epsilon);
         }
 
         //Don't have to worry about inf or close to zero cases
-
         public static bool ApproxEqual(this float _a, float _b, float _epsilon)
         {
             return Math.Abs(_a - _b) < _epsilon;
-        }
-
-
-        /*
-        public static bool ApproxEqual(this float _a, float _b, float _epsilon)
-        {
-            float absA = Math.Abs(_a);
-            float absB = Math.Abs(_b);
-            float diff = Math.Abs(_a - _b);
-
-            if (_a == _b)
-            { // shortcut, handles infinitiess
-                return true;
-            } 
-            else if (_a == 0 || _b == 0) 
-            {
-                // _a or _b is zero or both are extremely close to it
-                // relative error is less meaningful here
-                return diff < _epsilon;
-            }
-            else
-            { // use relative error
-                return diff / (absA + absB) < _epsilon;
-            }
-        }
-        */
-
-
-        public static bool IsInPolygon(this Vector2 _point, params Vector2[] _poly)
-        {
-            //public static bool IsInPolygon(Point[] poly, Point point)
-            //{
-            var coef = _poly.Skip(1).Select((p, i) =>
-                    (_point.y - _poly[i].y) * (p.x - _poly[i].x)
-                    - (_point.x - _poly[i].x) * (p.y - _poly[i].y))
-                .ToList();
-
-            if (coef.Any(p => p == 0))
-                return true;
-
-            for (var i = 1; i < coef.Count(); i++)
-                if (coef[i] * coef[i - 1] < 0)
-                    return false;
-            return true;
-            //}
-        }
-
-        public static float ToDeg(float _radians)
-        {
-            return _radians * 180f / (float) Math.PI;
-        }
-
-        public static bool NearlyEqual(this float a, float b, float epsilon)
-        {
-            var absA = Math.Abs(a);
-            var absB = Math.Abs(b);
-            var diff = Math.Abs(a - b);
-
-            if (a == b)
-                return true;
-            if (a == 0 || b == 0)
-                return diff < epsilon;
-            return diff / (absA + absB) < epsilon;
         }
     }
 }
