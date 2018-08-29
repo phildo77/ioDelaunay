@@ -87,12 +87,9 @@
                 for (var tIdx = 0; tIdx < tris.Length; ++tIdx)
                 {
                     var tri = tris[tIdx];
-                    for (var vIdx = 0; vIdx < 3; ++vIdx)
-                    {
-                        triIdxs[tIdx * 3 + vIdx] = tri.Edge0.OriginIdx;
-                        triIdxs[tIdx * 3 + vIdx] = tri.Edge1.OriginIdx;
-                        triIdxs[tIdx * 3 + vIdx] = tri.Edge2.OriginIdx;
-                    }
+                    triIdxs[tIdx * 3] = tri.Edge0.OriginIdx;
+                    triIdxs[tIdx * 3 + 1] = tri.Edge1.OriginIdx;
+                    triIdxs[tIdx * 3 + 2] = tri.Edge2.OriginIdx;
                 }
                 return new Mesh(Points.ToArray(), triIdxs);
             }
@@ -199,6 +196,15 @@
                     Points[pIdx] -= m_Shift;
 
                 BoundsRect.position -= m_Shift;
+
+                var triScan = LastTri;
+                while (triScan != null)
+                {
+                    triScan.CCX -= m_Shift.x;
+                    triScan.CCY -= m_Shift.y;
+                    triScan = triScan.PrevTri;
+
+                }
             }
         }
 
@@ -210,7 +216,7 @@
             m_TriCount = 0;
             if (LastTri == null) return;
             var triScan = LastTri;
-            while (triScan.PrevTri != null)
+            do
             {
                 var triNext = triScan.PrevTri;
                 triScan.D = null;
@@ -219,7 +225,9 @@
                 triScan.Edge2 = null;
                 triScan.PrevTri = null;
                 triScan = triNext;
-            }
+            } while (triScan != null);
+
+            LastTri = null;
         }
 
         #endregion Methods

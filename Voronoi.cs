@@ -290,12 +290,6 @@ namespace ioDelaunay
             }
         }
         
-        private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd)
-        {
-            BndSide unused;
-            return GetIntersectionToBndy(_fromPt, _fromDir, _bnd, out unused);
-        }
-        
         //TODO INEFFICIENT
         private Vector2 GetIntersectionToBndy(Vector2 _fromPt, Vector2 _fromDir, Rect _bnd,
             out BndSide _bndSide)
@@ -330,10 +324,6 @@ namespace ioDelaunay
                     _bndSide = (BndSide) bEdgeIdx;
                 }
             }
-            
-            
-
-
             return intPt;
         }
         
@@ -432,27 +422,6 @@ namespace ioDelaunay
                 if(m_Closed)
                     edge.NextEdge = FirstEdge;
 
-            }
-
-            public void Reform(List<Vector2> _pts, List<HalfEdge> _twins)
-            {
-                var edgeScan = FirstEdge;
-                var lastEdge = edgeScan;
-                for (int pIdx = 0; pIdx < _pts.Count; ++pIdx)
-                {
-                    edgeScan.Origin = _pts[pIdx];
-                    edgeScan.Twin = _twins[pIdx];
-                    if (_twins[pIdx] != null)
-                        _twins[pIdx].Twin = edgeScan;
-
-
-                    if (pIdx + 1 != _pts.Count && edgeScan.NextEdge != null && edgeScan.NextEdge != FirstEdge)
-                        edgeScan.NextEdge = new HalfEdge(Vector2.zero);
-                    lastEdge = edgeScan;
-                    edgeScan = edgeScan.NextEdge;
-                }
-
-                lastEdge.NextEdge = m_Closed ? FirstEdge : null;
             }
             
             public class HalfEdge
