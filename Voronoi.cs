@@ -26,11 +26,19 @@ namespace ioDelaunay
             var dIdxsDone = new HashSet<int>();
 
             var hullIdxs = new HashSet<int>(D.HullEdges.Select(_edge => _edge.OriginIdx));
-            
 
+            var progState = "Voronoi Build Inner Sites...";
+            var prog = 0f;
+            var trisTotal = D.Triangles().Length; //TODO not fast
+            var triProgCnt = 0;
+            
             //Build Inner Sites
             while (tri.PrevTri != null)
             {
+                prog = (float)triProgCnt++ / trisTotal;
+                progState = "Voronoi Inner Tri " + triProgCnt + " of " + trisTotal;
+                D.UpdateProgress(prog, progState);
+                
                 var edges = new[] {tri.Edge0, tri.Edge1, tri.Edge2};
                 for (int eIdx = 0; eIdx < 3; ++eIdx)
                 {
@@ -77,11 +85,16 @@ namespace ioDelaunay
 
         private void BuildOuter()
         {
+            var progState = "Voronoi Build Outer...";
+            var prog = 0f;
             var infEdgeLen = (D.BoundsRect.width + D.BoundsRect.height) / 4f;  //TODO
             var hullEdges = D.HullEdges;
             Site.HalfEdge lastTwin = null;
             for (int heIdx = 0; heIdx < hullEdges.Count; ++heIdx)
             {
+                prog = (float) heIdx / hullEdges.Count;
+                D.UpdateProgress(prog, progState);
+                
                 var edge = hullEdges[heIdx];
                 var nextEdgeOriginPos = edge.NextEdge.OriginPos;
                 var edgeOIdx = edge.OriginIdx;
@@ -164,8 +177,18 @@ namespace ioDelaunay
             var sitesToTrim = new HashSet<int>();
             var sitesToRemove = new HashSet<int>();
 
+            //Progress
+            var idxCnt = 0;
+            var idxCntTot = SitesByDIdx.Keys.Count;
+            var progState = "Voronoi Trimming Sites - Scanning";
+            var prog = 0f;
+            
             foreach(var dIdx in SitesByDIdx.Keys)
             {
+                prog = (float) idxCnt++ / idxCntTot;
+                progState = "Voronoi Trimming Sites - Scanning " + idxCnt + " of " + idxCntTot;
+                D.UpdateProgress(prog, progState);
+                
                 var site = SitesByDIdx[dIdx];
                 var wasClosed = site.Closed;
                 site.Closed = true;
@@ -199,8 +222,17 @@ namespace ioDelaunay
             };
             
             //Trim Sites
+            
+            //Progress
+            var idxTrimCur = 0;
+            var idxTrimTot = sitesToTrim.Count;
+            
             foreach (int dIdx in sitesToTrim)
             {
+                prog = (float) idxTrimCur / idxTrimTot;
+                progState = "Voronoi Trimming Sites - Trimming " + idxTrimCur + " of " + idxTrimTot;
+                D.UpdateProgress(prog, progState);
+                
                 var site = SitesByDIdx[dIdx];
                 site.Closed = true;
 
@@ -274,11 +306,20 @@ namespace ioDelaunay
 
         public void LloydRelax(Rect _trimBndy, int _iters = 1)
         {
+            var progState = "Voronoi Lloyd Relax";
+            var prog = 0f;
+            var idxSiteCur = 0;
+            var idxSiteTot = SitesByDIdx.Keys.Count;
+            
             for (var iter = 0; iter < _iters; ++iter)
             {
                 var centroids = new List<Vector2>();
                 foreach (var siteIdx in SitesByDIdx.Keys)
                 {
+                    prog = (float) idxSiteCur++ / idxSiteTot;
+                    progState = "Voronoi Lloyd Relax " + idxSiteCur + " of " + idxSiteTot;
+                    D.UpdateProgress(prog, progState);
+                    
                     var site = (Site) SitesByDIdx[siteIdx];
                     var centroid = Geom.CentroidOfPoly(site.Edges.Select(_edge => _edge.Origin));
                     centroids.Add(centroid);

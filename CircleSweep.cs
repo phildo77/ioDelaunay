@@ -38,8 +38,16 @@
         {
             Init();
 
+            var progState = "Triangulating Algorithm";
+            var prog = 0f;
+            var idxVertTot = m_VertIdxsByR.Length;
+            
             for (var rIdx = 0; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
+                prog = (float)rIdx / (float)m_VertIdxsByR.Length;
+                progState = "Circle Sweep Vert " + rIdx + " of " + idxVertTot;
+                D.UpdateProgress(prog, progState);
+                
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
                 // 1) Project
@@ -65,7 +73,9 @@
             }
 
             // 7) Finalize
+            D.UpdateProgress(0,"Finalizing Hull...");
             FinalizeHull();
+            D.UpdateProgress(1,"Finalizing Hull...Done!");
         }
 
         /// <summary>
@@ -86,6 +96,105 @@
         }
 
         private Vector2 CalcOrigin(out int[] _firstTriIdxs)
+        {
+            var cent = D.BoundsRect.center;
+            Func<Vector2, float> fPtDist = _p => Math.Abs(_p.x) + Math.Abs(_p.y);
+
+            var lstPIdx = new List<int>(3)
+            {
+                0, 1, 2
+            };
+            var lstPDist = new List<float>(3)
+                {fPtDist(D.Points[0]),fPtDist(D.Points[1]), fPtDist(D.Points[2])};
+            
+            lstPIdx.Sort((_a, _b) => lstPDist[_a].CompareTo(lstPDist[_b]) );
+            lstPDist = new List<float>(3)
+            {
+                fPtDist(D.Points[lstPIdx[0]]),
+                fPtDist(D.Points[lstPIdx[1]]),
+                fPtDist(D.Points[lstPIdx[2]])
+            };
+            
+            for(int pIdx = 3; pIdx < D.Points.Count; ++pIdx)
+            {
+                var pDist = fPtDist(D.Points[pIdx]);
+                if (pDist > lstPDist[2]) continue;
+                if (pDist < lstPDist[0])
+                {
+                    lstPDist[2] = lstPDist[1];
+                    lstPIdx[2] = lstPIdx[1];
+                    lstPDist[1] = lstPDist[0];
+                    lstPIdx[1] = lstPIdx[0];
+                    lstPDist[0] = pDist;
+                    lstPIdx[0] = pIdx;
+                    continue;
+                }
+
+                if (pDist < lstPDist[1])
+                {
+                    lstPDist[2] = lstPDist[1];
+                    lstPIdx[2] = lstPIdx[1];
+                    lstPDist[1] = pDist;
+                    lstPIdx[1] = pIdx;
+                    continue;
+
+                }
+                
+                lstPDist[2] = pDist;
+                lstPIdx[2] = pIdx;
+                
+            }
+            
+            
+            
+            _firstTriIdxs = lstPIdx.ToArray();
+            //Find 1st non-linear set of points (valid triangle)
+            var findNonLineIdx = 3;
+            while (Geom.AreColinear(D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]],
+                D.MinFloatingPointErr))
+            {
+                var dIdx = _firstTriIdxs[0];
+                var dbgPt0 = D.Points[_firstTriIdxs[0]];
+                var dbgPt1 = D.Points[_firstTriIdxs[1]];
+                var dbgPt2 = D.Points[_firstTriIdxs[2]];
+                
+                var mPntX = D.Points[dIdx].x;
+                var mPntY = D.Points[dIdx].y;
+                var rnd = new Random((int)DateTime.Now.Ticks);
+                var rndDir = rnd.Next(4);
+                if (rndDir == 0)
+                    D.Points[dIdx].Set(mPntX + D.MinFloatingPointErr, mPntY);
+                else if (rndDir == 1)
+                    D.Points[dIdx].Set(mPntX - D.MinFloatingPointErr, mPntY);
+                else if (rndDir == 2)
+                    D.Points[dIdx].Set(mPntX, mPntY + D.MinFloatingPointErr);
+                else 
+                    D.Points[dIdx].Set(mPntX, mPntY - D.MinFloatingPointErr);
+                    
+            };
+
+            //Force Clockwise
+            var v0 = D.Points[_firstTriIdxs[0]];
+            var v1 = D.Points[_firstTriIdxs[1]];
+            var v2 = D.Points[_firstTriIdxs[2]];
+            var vecL = v1 - v0;
+            var vecR = v2 - v0;
+
+            //Positive Cross Product greater than 180
+            var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
+            if (crossZ > 0)
+            {
+                var tempIdx = _firstTriIdxs[1];
+                _firstTriIdxs[1] = _firstTriIdxs[2];
+                _firstTriIdxs[2] = tempIdx;
+            }
+
+            var triPts = new[] {D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]};
+            var cc = Geom.CentroidOfPoly(triPts);
+            return cc;
+            
+        }
+        private Vector2 CalcOriginOrig(out int[] _firstTriIdxs)
         {
             var cent = D.BoundsRect.center;
             var closest = new SortedList<float, int>

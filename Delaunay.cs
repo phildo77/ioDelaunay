@@ -1,4 +1,6 @@
-﻿namespace ioDelaunay
+﻿using System.Diagnostics;
+
+namespace ioDelaunay
 {
     using System;
     using System.Collections.Generic;
@@ -38,6 +40,9 @@
         private Vector2 m_Shift = Vector2.zero; //avoid floating point zero comparisons
         private float n; //Linear transform coefficient n
 
+        public int OnProgressFrequency = 1000;
+        private Stopwatch m_ProgTimer = new Stopwatch();
+        
         #endregion Fields
 
         #region Constructors
@@ -107,6 +112,15 @@
 
         #region Methods
 
+        internal void UpdateProgress(float _prog, string _state)
+        {
+            if (m_ProgTimer.ElapsedMilliseconds < OnProgressFrequency) return;
+            OnProgressUpdate?.Invoke(_prog, _state);
+            m_ProgTimer.Restart();
+        }
+
+        public Action<float, string> OnProgressUpdate;
+        
         /// <summary>
         /// Create new Delaunay object
         /// </summary>
@@ -119,6 +133,7 @@
             var del = new Delaunay(_points);
             del.triangulator = new T();
             ((ITriangulator) del.triangulator).SetTarget(del);
+            del.m_ProgTimer.Start();
             return del;
         }
 
@@ -154,6 +169,7 @@
         /// </summary>
         public void Triangulate()
         {
+            UpdateProgress(0, "Triangulate Init...");
             ClearTris();
             BoundsRect = new Rect(Rect.zero);
 
@@ -232,6 +248,9 @@
 
         #endregion Methods
 
+        
+        
+        
         #region Nested Types
 
         public class Triangle
