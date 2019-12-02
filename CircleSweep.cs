@@ -95,7 +95,7 @@
             }
         }
 
-        private Vector2 CalcOrigin(out int[] _firstTriIdxs)
+        private Vector2 CalcOrigin2(out int[] _firstTriIdxs)
         {
             var cent = D.BoundsRect.center;
             Func<Vector2, float> fPtDist = _p => Math.Abs(_p.x) + Math.Abs(_p.y);
@@ -154,7 +154,7 @@
                 D.MinFloatingPointErr))
             {
                 var dIdx = _firstTriIdxs[0];
-                var dbgPt0 = D.Points[_firstTriIdxs[0]];
+                var dbgPt0 = D.Points[_firstTriIdxs[0]]; //TODO remove
                 var dbgPt1 = D.Points[_firstTriIdxs[1]];
                 var dbgPt2 = D.Points[_firstTriIdxs[2]];
                 
@@ -193,6 +193,49 @@
             var cc = Geom.CentroidOfPoly(triPts);
             return cc;
             
+        }
+
+        private Vector2 CalcOrigin(out int[] _firstTriIdxs)
+        {
+            
+            var cent = D.BoundsRect.center;
+            var pIdxArr = new int[D.Points.Count];
+            var pDistArr = new float[D.Points.Count];
+            for (int idx = 0; idx < pIdxArr.Length; ++idx)
+            {
+                var dx = Math.Abs(cent.x - D.Points[idx].x);
+                var dy = Math.Abs(cent.y - D.Points[idx].y);
+                pIdxArr[idx] = idx;
+                pDistArr[idx] = dx + dy;
+            }
+            
+            Array.Sort(pIdxArr, (_a, _b) => pDistArr[_a].CompareTo(pDistArr[_b]));
+            
+            _firstTriIdxs = new[] {pIdxArr[0], pIdxArr[1], pIdxArr[2]};
+            //Find 1st non-linear set of points (valid triangle)
+            var findNonLineIdx = 3;
+            while (Geom.AreColinear(D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]],
+                D.MinFloatingPointErr)) _firstTriIdxs[2] = pIdxArr[findNonLineIdx++];
+
+            //Force Clockwise
+            var v0 = D.Points[_firstTriIdxs[0]];
+            var v1 = D.Points[_firstTriIdxs[1]];
+            var v2 = D.Points[_firstTriIdxs[2]];
+            var vecL = v1 - v0;
+            var vecR = v2 - v0;
+
+            //Positive Cross Product greater than 180
+            var crossZ = vecL.x * vecR.y - vecL.y * vecR.x;
+            if (crossZ > 0)
+            {
+                var tempIdx = _firstTriIdxs[1];
+                _firstTriIdxs[1] = _firstTriIdxs[2];
+                _firstTriIdxs[2] = tempIdx;
+            }
+
+            var triPts = new[] {D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]};
+            var cc = Geom.CentroidOfPoly(triPts);
+            return cc;
         }
         private Vector2 CalcOriginOrig(out int[] _firstTriIdxs)
         {
