@@ -54,6 +54,12 @@
     <Compile Include="Vector2.cs" />
     <Compile Include="Voronoi.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ioProgress\ioProgress.csproj">
+      <Project>{b47ec275-b690-4b95-8a3d-21343c21fb57}</Project>
+      <Name>ioProgress</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
          Other similar extension points exist, see Microsoft.Common.targets.

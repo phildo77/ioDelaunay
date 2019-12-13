@@ -37,7 +37,7 @@ namespace ioDelaunay
             {
                 prog = (float)triProgCnt++ / trisTotal;
                 progState = "Voronoi Inner Tri " + triProgCnt + " of " + trisTotal;
-                D.UpdateProgress(prog, progState);
+                D.Prog.Update(prog, progState);
                 
                 var edges = new[] {tri.Edge0, tri.Edge1, tri.Edge2};
                 for (int eIdx = 0; eIdx < 3; ++eIdx)
@@ -93,7 +93,7 @@ namespace ioDelaunay
             for (int heIdx = 0; heIdx < hullEdges.Count; ++heIdx)
             {
                 prog = (float) heIdx / hullEdges.Count;
-                D.UpdateProgress(prog, progState);
+                D.Prog.Update(prog, progState);
                 
                 var edge = hullEdges[heIdx];
                 var nextEdgeOriginPos = edge.NextEdge.OriginPos;
@@ -187,7 +187,7 @@ namespace ioDelaunay
             {
                 prog = (float) idxCnt++ / idxCntTot;
                 progState = "Voronoi Trimming Sites - Scanning " + idxCnt + " of " + idxCntTot;
-                D.UpdateProgress(prog, progState);
+                D.Prog.Update(prog, progState);
                 
                 var site = SitesByDIdx[dIdx];
                 var wasClosed = site.Closed;
@@ -231,7 +231,7 @@ namespace ioDelaunay
             {
                 prog = (float) idxTrimCur / idxTrimTot;
                 progState = "Voronoi Trimming Sites - Trimming " + idxTrimCur + " of " + idxTrimTot;
-                D.UpdateProgress(prog, progState);
+                D.Prog.Update(prog, progState);
                 
                 var site = SitesByDIdx[dIdx];
                 site.Closed = true;
@@ -318,7 +318,7 @@ namespace ioDelaunay
                 {
                     prog = (float) idxSiteCur++ / idxSiteTot;
                     progState = "Voronoi Lloyd Relax " + idxSiteCur + " of " + idxSiteTot;
-                    D.UpdateProgress(prog, progState);
+                    D.Prog.Update(prog, progState);
                     
                     var site = (Site) SitesByDIdx[siteIdx];
                     var centroid = Geom.CentroidOfPoly(site.Edges.Select(_edge => _edge.Origin));

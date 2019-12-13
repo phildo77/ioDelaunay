@@ -46,7 +46,7 @@
             {
                 prog = (float)rIdx / (float)m_VertIdxsByR.Length;
                 progState = "Circle Sweep Vert " + rIdx + " of " + idxVertTot;
-                D.UpdateProgress(prog, progState);
+                D.Prog.Update(prog, progState);
                 
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
@@ -73,9 +73,9 @@
             }
 
             // 7) Finalize
-            D.UpdateProgress(0,"Finalizing Hull...");
+            D.Prog.Update(0,"Finalizing Hull...");
             FinalizeHull();
-            D.UpdateProgress(1,"Finalizing Hull...Done!");
+            D.Prog.Update(1,"Finalizing Hull...Done!");
         }
 
         /// <summary>
