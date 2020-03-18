@@ -1,6 +1,10 @@
 # ioDelaunay
 Delaunay Triangulation and Voronoi in C#
 
+Depends on the following references:
+
+https://github.com/phildo77/ioUtil
+
 Work in progress / In development / Now in BETA
 
 Usage Example:
