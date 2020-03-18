@@ -1,50 +1,14 @@
-﻿using System.Diagnostics;
-using ioUtils;
+﻿using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using ioSS.Util;
+using ioSS.Util.Maths;
+using ioSS.Util.Maths.Geometry;
 
-namespace ioDelaunay
+namespace ioSS.Delaunay
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.CompilerServices;
-
     public partial class Delaunay
     {
-        #region Fields
-
-        /// <summary>
-        /// Outer bounds of the Delaunay graph
-        /// </summary>
-        public Rect BoundsRect;
-
-        /// <summary>
-        /// Contains outer hull edges in CW order upon completion of triangulation
-        /// </summary>
-        public List<Triangle.HalfEdge> HullEdges = new List<Triangle.HalfEdge>();
-        
-        /// <summary>
-        /// Reference to last triangle created.
-        /// </summary>
-        public Triangle LastTri;
-        
-        /// <summary>
-        /// Allowed error for floating point equality checks.
-        /// </summary>
-        public float MinFloatingPointErr;
-        
-        /// <summary>
-        /// List of points to triangulate
-        /// </summary>
-        public List<Vector2> Points;
-        
-        private int m_TriCount = 0;
-
-        private Vector2 m_Shift = Vector2.zero; //avoid floating point zero comparisons
-        private float n; //Linear transform coefficient n
-
-        public Progress Prog;
-        
-        #endregion Fields
-
         #region Constructors
 
         private Delaunay(List<Vector2> _points)
@@ -61,7 +25,7 @@ namespace ioDelaunay
                 r22 = (float) rnd.NextDouble();
 
             Points = _points;
-            
+
             Prog = new Progress();
         }
 
@@ -80,10 +44,46 @@ namespace ioDelaunay
 
         #endregion Nested Interfaces
 
+        #region Fields
+
+        /// <summary>
+        ///     Outer bounds of the Delaunay graph
+        /// </summary>
+        public Rect BoundsRect;
+
+        /// <summary>
+        ///     Contains outer hull edges in CW order upon completion of triangulation
+        /// </summary>
+        public List<Triangle.HalfEdge> HullEdges = new List<Triangle.HalfEdge>();
+
+        /// <summary>
+        ///     Reference to last triangle created.
+        /// </summary>
+        public Triangle LastTri;
+
+        /// <summary>
+        ///     Allowed error for floating point equality checks.
+        /// </summary>
+        public float MinFloatingPointErr;
+
+        /// <summary>
+        ///     List of points to triangulate
+        /// </summary>
+        public List<Vector2> Points;
+
+        private int m_TriCount;
+
+        private Vector2 m_Shift = Vector2.zero; //avoid floating point zero comparisons
+        private float n; //Linear transform coefficient n
+
+        public Progress Prog;
+
+        #endregion Fields
+
         #region Properties
 
         /// <summary>
-        /// Generate and return mesh
+        ///     Generate and return mesh
         /// </summary>
         public Mesh Mesh
         {
@@ -98,25 +98,22 @@ namespace ioDelaunay
                     triIdxs[tIdx * 3 + 1] = tri.Edge1.OriginIdx;
                     triIdxs[tIdx * 3 + 2] = tri.Edge2.OriginIdx;
                 }
+
                 return new Mesh(Points.ToArray(), triIdxs);
             }
         }
 
         /// <summary>
-        /// Access to triangulator
+        ///     Access to triangulator
         /// </summary>
-        public Triangulator triangulator
-        {
-            get; private set;
-        }
+        public Triangulator triangulator { get; private set; }
 
         #endregion Properties
 
         #region Methods
 
-        
         /// <summary>
-        /// Create new Delaunay object
+        ///     Create new Delaunay object
         /// </summary>
         /// <param name="_points">Points to be triangulated</param>
         /// <typeparam name="T">Type of triangulator to use for triangulation</typeparam>
@@ -131,14 +128,14 @@ namespace ioDelaunay
         }
 
         /// <summary>
-        /// Create / return array containing all triangles
+        ///     Create / return array containing all triangles
         /// </summary>
         /// <returns></returns>
         public Triangle[] Triangles()
         {
             var triangles = new Triangle[m_TriCount];
             var curTri = LastTri;
-            for (int tIdx = 0; tIdx < m_TriCount; ++tIdx)
+            for (var tIdx = 0; tIdx < m_TriCount; ++tIdx)
             {
                 triangles[tIdx] = curTri;
                 curTri = curTri.PrevTri;
@@ -148,7 +145,7 @@ namespace ioDelaunay
         }
 
         /// <summary>
-        /// Perform delaunay triangulation on specified list of points
+        ///     Perform delaunay triangulation on specified list of points
         /// </summary>
         /// <param name="_points">Points to triangulate</param>
         public void Triangulate(List<Vector2> _points)
@@ -158,7 +155,7 @@ namespace ioDelaunay
         }
 
         /// <summary>
-        /// Perform delaunay triangulation
+        ///     Perform delaunay triangulation
         /// </summary>
         public void Triangulate()
         {
@@ -176,12 +173,12 @@ namespace ioDelaunay
             //Determine minimum floating point error and degenerate transform scalar
             var min = w < h ? w : h;
             MinFloatingPointErr = min / Points.Count * 0.01f; //TODO research best choice for MinFloatingPointErr
-            n = MinFloatingPointErr;  //TODO research best choice for n
+            n = MinFloatingPointErr; //TODO research best choice for n
 
             //Shift points to avoid near zero floating point
             var rectMin = BoundsRect.min;
 
-            bool doShift = !(rectMin.x > 0 && rectMin.y > 0);
+            var doShift = !(rectMin.x > 0 && rectMin.y > 0);
 
             if (doShift)
             {
@@ -193,7 +190,9 @@ namespace ioDelaunay
                 BoundsRect.position += m_Shift;
             }
             else
+            {
                 m_Shift = Vector2.zero;
+            }
 
             //Triangulate
             triangulator.Triangulate();
@@ -212,13 +211,12 @@ namespace ioDelaunay
                     triScan.CCX -= m_Shift.x;
                     triScan.CCY -= m_Shift.y;
                     triScan = triScan.PrevTri;
-
                 }
             }
         }
 
         /// <summary>
-        /// Clear triangle references for GC
+        ///     Clear triangle references for GC
         /// </summary>
         private void ClearTris()
         {
@@ -241,13 +239,60 @@ namespace ioDelaunay
 
         #endregion Methods
 
-        
-        
-        
+
         #region Nested Types
 
         public class Triangle
         {
+            #region Methods
+
+            /// <summary>
+            ///     Returns edge by index - convenience function
+            /// </summary>
+            /// <param name="_idx"></param>
+            /// <returns>selected edge</returns>
+            public HalfEdge Edge(int _idx)
+            {
+                if (_idx < 0 || _idx > 2) return null;
+                if (_idx == 0)
+                    return Edge0;
+                if (_idx == 1)
+                    return Edge1;
+                return Edge2;
+            }
+
+            #endregion Methods
+
+            #region Nested Types
+
+            public class HalfEdge
+            {
+                #region Constructors
+
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                public HalfEdge(Triangle _triangle, int _originIdx, Delaunay _d)
+                {
+                    D = _d;
+                    Triangle = _triangle;
+                    OriginIdx = _originIdx;
+                }
+
+                #endregion Constructors
+
+                #region Fields
+
+                public Delaunay D;
+                public HalfEdge NextEdge;
+                public int OriginIdx;
+                public Vector2 OriginPos => D.Points[OriginIdx];
+                public Triangle Triangle;
+                public HalfEdge Twin;
+
+                #endregion Fields
+            }
+
+            #endregion Nested Types
+
             #region Fields
 
             public float CCRSq;
@@ -264,7 +309,7 @@ namespace ioDelaunay
             #region Constructors
 
             /// <summary>
-            /// Add triangle to triangulation connecting to two existing edges.  Clockwise
+            ///     Add triangle to triangulation connecting to two existing edges.  Clockwise
             /// </summary>
             /// <param name="_twinLt">Connecting twin left</param>
             /// <param name="_twinRt">Connecting twin right</param>
@@ -302,7 +347,7 @@ namespace ioDelaunay
             }
 
             /// <summary>
-            /// Add triangle to triangulation connecting to a single edge and a new vertex index.  Clockwise
+            ///     Add triangle to triangulation connecting to a single edge and a new vertex index.  Clockwise
             /// </summary>
             /// <param name="_twin">existing twin edge to connect</param>
             /// <param name="_newVert">new vertex index</param>
@@ -337,8 +382,8 @@ namespace ioDelaunay
             }
 
             /// <summary>
-            /// Create new triangle from three vertex indexes.
-            /// Warning does not check for clockwise or colinear - expects clockwise and not colinear
+            ///     Create new triangle from three vertex indexes.
+            ///     Warning does not check for clockwise or colinear - expects clockwise and not colinear
             /// </summary>
             /// <param name="_v0">Vert index 0</param>
             /// <param name="_v1">Vert index 1</param>
@@ -366,55 +411,6 @@ namespace ioDelaunay
             }
 
             #endregion Constructors
-
-            #region Methods
-
-            /// <summary>
-            /// Returns edge by index - convenience function
-            /// </summary>
-            /// <param name="_idx"></param>
-            /// <returns>selected edge</returns>
-            public HalfEdge Edge(int _idx)
-            {
-                if (_idx < 0 || _idx > 2) return null;
-                if (_idx == 0)
-                    return Edge0;
-                if (_idx == 1)
-                    return Edge1;
-                return Edge2;
-            }
-
-            #endregion Methods
-
-            #region Nested Types
-
-            public class HalfEdge
-            {
-                #region Fields
-
-                public Delaunay D;
-                public HalfEdge NextEdge;
-                public int OriginIdx;
-                public Vector2 OriginPos => D.Points[OriginIdx];
-                public Triangle Triangle;
-                public HalfEdge Twin;
-
-                #endregion Fields
-
-                #region Constructors
-
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                public HalfEdge(Triangle _triangle, int _originIdx, Delaunay _d)
-                {
-                    D = _d;
-                    Triangle = _triangle;
-                    OriginIdx = _originIdx;
-                }
-
-                #endregion Constructors
-            }
-
-            #endregion Nested Types
         }
 
         public abstract class Triangulator : ITriangulator

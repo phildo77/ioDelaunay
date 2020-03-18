@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ioDelaunay", "ioDelaunay.cs
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ioDelaunayTest", "ioDelaunayTest\ioDelaunayTest.csproj", "{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ioProgress", "..\ioProgress\ioProgress.csproj", "{B47EC275-B690-4B95-8A3D-21343C21FB57}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ioUtil", "..\ioUtil\ioUtil.csproj", "{23F41048-3FF9-4F62-98F8-0504CBDC31C5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,9 +20,9 @@ Global
 		{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D55EBA2B-EBCB-45E6-B934-81F5F44B7DBC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B47EC275-B690-4B95-8A3D-21343C21FB57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B47EC275-B690-4B95-8A3D-21343C21FB57}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B47EC275-B690-4B95-8A3D-21343C21FB57}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B47EC275-B690-4B95-8A3D-21343C21FB57}.Release|Any CPU.Build.0 = Release|Any CPU
+		{23F41048-3FF9-4F62-98F8-0504CBDC31C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{23F41048-3FF9-4F62-98F8-0504CBDC31C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{23F41048-3FF9-4F62-98F8-0504CBDC31C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{23F41048-3FF9-4F62-98F8-0504CBDC31C5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

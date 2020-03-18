@@ -1,27 +1,15 @@
-﻿namespace ioDelaunay
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Runtime.CompilerServices;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using ioSS.Util.Collections;
+using ioSS.Util.Maths;
+using ioSS.Util.Maths.Geometry;
 
+namespace ioSS.Delaunay
+{
     public class CircleSweep : Delaunay.Triangulator
     {
-        #region Fields
-
-        private FastPriorityQueue<Frontier.FrontierPt> m_BasinPtQ = new FastPriorityQueue<Frontier.FrontierPt>(0);
-
-        /// <summary>
-        /// Object tracking frontier of circle sweep triangulation
-        /// </summary>
-        private Frontier m_Frontier;
-        private Vector2 m_Origin;
-        private PolartPt[] m_PolPos; //By Point Idx
-        private int[] m_VertIdxsByR;
-
-        #endregion Fields
-
         #region Enumerations
 
         private enum RL
@@ -32,6 +20,22 @@
 
         #endregion Enumerations
 
+        #region Fields
+
+        private readonly FastPriorityQueue<Frontier.FrontierPt> m_BasinPtQ =
+            new FastPriorityQueue<Frontier.FrontierPt>(0);
+
+        /// <summary>
+        ///     Object tracking frontier of circle sweep triangulation
+        /// </summary>
+        private Frontier m_Frontier;
+
+        private Vector2 m_Origin;
+        private PolartPt[] m_PolPos; //By Point Idx
+        private int[] m_VertIdxsByR;
+
+        #endregion Fields
+
         #region Methods
 
         protected override void Algorithm()
@@ -41,13 +45,13 @@
             var progState = "Triangulating Algorithm";
             var prog = 0f;
             var idxVertTot = m_VertIdxsByR.Length;
-            
+
             for (var rIdx = 0; rIdx < m_VertIdxsByR.Length; ++rIdx)
             {
-                prog = (float)rIdx / (float)m_VertIdxsByR.Length;
+                prog = rIdx / (float) m_VertIdxsByR.Length;
                 progState = "Circle Sweep Vert " + rIdx + " of " + idxVertTot;
                 D.Prog.Update(prog, progState);
-                
+
                 var ofVertIdx = m_VertIdxsByR[rIdx];
 
                 // 1) Project
@@ -73,13 +77,13 @@
             }
 
             // 7) Finalize
-            D.Prog.Update(0,"Finalizing Hull...");
+            D.Prog.Update(0, "Finalizing Hull...");
             FinalizeHull();
-            D.Prog.Update(1,"Finalizing Hull...Done!");
+            D.Prog.Update(1, "Finalizing Hull...Done!");
         }
 
         /// <summary>
-        /// Fills HullEdges in CW order
+        ///     Fills HullEdges in CW order
         /// </summary>
         protected override void Hull()
         {
@@ -105,17 +109,17 @@
                 0, 1, 2
             };
             var lstPDist = new List<float>(3)
-                {fPtDist(D.Points[0]),fPtDist(D.Points[1]), fPtDist(D.Points[2])};
-            
-            lstPIdx.Sort((_a, _b) => lstPDist[_a].CompareTo(lstPDist[_b]) );
+                {fPtDist(D.Points[0]), fPtDist(D.Points[1]), fPtDist(D.Points[2])};
+
+            lstPIdx.Sort((_a, _b) => lstPDist[_a].CompareTo(lstPDist[_b]));
             lstPDist = new List<float>(3)
             {
                 fPtDist(D.Points[lstPIdx[0]]),
                 fPtDist(D.Points[lstPIdx[1]]),
                 fPtDist(D.Points[lstPIdx[2]])
             };
-            
-            for(int pIdx = 3; pIdx < D.Points.Count; ++pIdx)
+
+            for (var pIdx = 3; pIdx < D.Points.Count; ++pIdx)
             {
                 var pDist = fPtDist(D.Points[pIdx]);
                 if (pDist > lstPDist[2]) continue;
@@ -137,16 +141,13 @@
                     lstPDist[1] = pDist;
                     lstPIdx[1] = pIdx;
                     continue;
-
                 }
-                
+
                 lstPDist[2] = pDist;
                 lstPIdx[2] = pIdx;
-                
             }
-            
-            
-            
+
+
             _firstTriIdxs = lstPIdx.ToArray();
             //Find 1st non-linear set of points (valid triangle)
             var findNonLineIdx = 3;
@@ -157,10 +158,10 @@
                 var dbgPt0 = D.Points[_firstTriIdxs[0]]; //TODO remove
                 var dbgPt1 = D.Points[_firstTriIdxs[1]];
                 var dbgPt2 = D.Points[_firstTriIdxs[2]];
-                
+
                 var mPntX = D.Points[dIdx].x;
                 var mPntY = D.Points[dIdx].y;
-                var rnd = new Random((int)DateTime.Now.Ticks);
+                var rnd = new Random((int) DateTime.Now.Ticks);
                 var rndDir = rnd.Next(4);
                 if (rndDir == 0)
                     D.Points[dIdx].Set(mPntX + D.MinFloatingPointErr, mPntY);
@@ -168,10 +169,11 @@
                     D.Points[dIdx].Set(mPntX - D.MinFloatingPointErr, mPntY);
                 else if (rndDir == 2)
                     D.Points[dIdx].Set(mPntX, mPntY + D.MinFloatingPointErr);
-                else 
+                else
                     D.Points[dIdx].Set(mPntX, mPntY - D.MinFloatingPointErr);
-                    
-            };
+            }
+
+            ;
 
             //Force Clockwise
             var v0 = D.Points[_firstTriIdxs[0]];
@@ -192,25 +194,23 @@
             var triPts = new[] {D.Points[_firstTriIdxs[0]], D.Points[_firstTriIdxs[1]], D.Points[_firstTriIdxs[2]]};
             var cc = Geom.CentroidOfPoly(triPts);
             return cc;
-            
         }
 
         private Vector2 CalcOrigin(out int[] _firstTriIdxs)
         {
-            
             var cent = D.BoundsRect.center;
             var pIdxArr = new int[D.Points.Count];
             var pDistArr = new float[D.Points.Count];
-            for (int idx = 0; idx < pIdxArr.Length; ++idx)
+            for (var idx = 0; idx < pIdxArr.Length; ++idx)
             {
                 var dx = Math.Abs(cent.x - D.Points[idx].x);
                 var dy = Math.Abs(cent.y - D.Points[idx].y);
                 pIdxArr[idx] = idx;
                 pDistArr[idx] = dx + dy;
             }
-            
+
             Array.Sort(pIdxArr, (_a, _b) => pDistArr[_a].CompareTo(pDistArr[_b]));
-            
+
             _firstTriIdxs = new[] {pIdxArr[0], pIdxArr[1], pIdxArr[2]};
             //Find 1st non-linear set of points (valid triangle)
             var findNonLineIdx = 3;
@@ -237,6 +237,7 @@
             var cc = Geom.CentroidOfPoly(triPts);
             return cc;
         }
+
         private Vector2 CalcOriginOrig(out int[] _firstTriIdxs)
         {
             var cent = D.BoundsRect.center;
@@ -346,7 +347,7 @@
             //Sort Basin points by R
             var fBasScan = fBasStart[_dir];
             m_BasinPtQ.Reset(ptCount);
-            for(int sIdx = 0; sIdx < ptCount; ++sIdx)
+            for (var sIdx = 0; sIdx < ptCount; ++sIdx)
             {
                 m_BasinPtQ.Enqueue(fBasScan, m_PolPos[fBasScan.VertIdx].r);
                 fBasScan = fBasScan[_dir];
@@ -522,14 +523,6 @@
 
         private class Frontier
         {
-            #region Fields
-
-            public FrontierPt LastAddedFPt;
-
-            private CircleSweep CS;
-
-            #endregion Fields
-
             #region Constructors
 
             public Frontier(Delaunay.Triangle _firstTri, CircleSweep _cs)
@@ -556,6 +549,14 @@
             }
 
             #endregion Constructors
+
+            #region Fields
+
+            public FrontierPt LastAddedFPt;
+
+            private readonly CircleSweep CS;
+
+            #endregion Fields
 
             #region Methods
 
@@ -616,7 +617,7 @@
                 }
             }
 
-            
+
             public void Remove(FrontierPt _fPt, Delaunay.Triangle.HalfEdge _newEdgeRight)
             {
                 var fpLeft = _fPt.Left;
@@ -634,19 +635,6 @@
 
             public class FrontierPt : FastPriorityQueueNode
             {
-                #region Fields
-
-                public Delaunay.Triangle.HalfEdge EdgeRight;
-                public FrontierPt Left;
-                public FrontierPt Right;
-                public float Theta => CS.m_PolPos[VertIdx].Theta;
-                public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
-                public int VertIdx => EdgeRight.OriginIdx;
-
-                private CircleSweep CS;
-
-                #endregion Fields
-
                 #region Constructors
 
                 public FrontierPt(Delaunay.Triangle.HalfEdge _edge, CircleSweep _cs)
@@ -667,22 +655,23 @@
                 }
 
                 #endregion Methods
+
+                #region Fields
+
+                public Delaunay.Triangle.HalfEdge EdgeRight;
+                public FrontierPt Left;
+                public FrontierPt Right;
+                public float Theta => CS.m_PolPos[VertIdx].Theta;
+                public FrontierPt this[RL _dir] => _dir == RL.Left ? Left : Right;
+                public int VertIdx => EdgeRight.OriginIdx;
+
+                private readonly CircleSweep CS;
+
+                #endregion Fields
             }
 
             public class ThetaGroup
             {
-                #region Fields
-
-                public FrontierPt First;
-                public float Mid => Min + (Max - Min) / 2;
-                public ThetaGroup Next;
-
-                private int m_Count;
-                private float Max => Next.First.Left.Theta;
-                private float Min => First.Theta; //TODO dynamic math or static span?
-
-                #endregion Fields
-
                 #region Properties
 
                 //TODO SLOW?
@@ -702,6 +691,18 @@
                 }
 
                 #endregion Properties
+
+                #region Fields
+
+                public FrontierPt First;
+                public float Mid => Min + (Max - Min) / 2;
+                public ThetaGroup Next;
+
+                private int m_Count;
+                private float Max => Next.First.Left.Theta;
+                private float Min => First.Theta; //TODO dynamic math or static span?
+
+                #endregion Fields
 
                 #region Methods
 
@@ -726,7 +727,7 @@
                     var thetaGroups = new ThetaGroup[k];
                     thetaGroups[0] = new ThetaGroup();
 
-                    for (int tIdx = 1; tIdx < k; ++tIdx)
+                    for (var tIdx = 1; tIdx < k; ++tIdx)
                     {
                         thetaGroups[tIdx] = new ThetaGroup();
                         thetaGroups[tIdx - 1].Next = thetaGroups[tIdx];
@@ -770,15 +771,6 @@
 
         private class PolartPt
         {
-            #region Fields
-
-            public readonly float r;
-            public readonly float Theta;
-
-            public Frontier.ThetaGroup thetaGroup;
-
-            #endregion Fields
-
             #region Constructors
 
             public PolartPt(Vector2 _cPt, Vector2 _origin)
@@ -791,6 +783,15 @@
             }
 
             #endregion Constructors
+
+            #region Fields
+
+            public readonly float r;
+            public readonly float Theta;
+
+            public Frontier.ThetaGroup thetaGroup;
+
+            #endregion Fields
         }
 
         #endregion Nested Types

@@ -1,7 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using ioSS.Util.Maths;
+using ioSS.Util.Maths.Geometry;
 
-namespace ioDelaunay
+namespace ioSS.Delaunay
 {
     public partial class Delaunay
     {
@@ -9,10 +11,10 @@ namespace ioDelaunay
         private readonly Triangle.HalfEdge[] m_RefOuterEdges = new Triangle.HalfEdge[4];
 
 
-        private float r11;
-        private float r12;
-        private float r21;
-        private float r22;
+        private readonly float r11;
+        private readonly float r12;
+        private readonly float r21;
+        private readonly float r22;
 
         /// <summary>
         ///     Iterative legalization - Assumes all edges have twins

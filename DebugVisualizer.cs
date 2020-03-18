@@ -5,8 +5,9 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Text;
+using ioSS.Util.Maths.Geometry;
 
-namespace ioDelaunay
+namespace ioSS.Delaunay
 {
     public static class DebugVisualizer
     {
@@ -280,11 +281,9 @@ namespace ioDelaunay
                             g.PixelOffsetMode = PixelOffsetMode.None;
                             var pen = new Pen(m_ColorVor);
                             g.DrawLine(pen, x1, y1, x2, y2);
-
                         }
                     }
                 }
-                    
             }
 
             //Draw Voronoi Bounds Rect
@@ -330,7 +329,7 @@ namespace ioDelaunay
         {
             return _radians * 180f / (float) Math.PI;
         }
-        
+
         public static void LogToFile(string _fileName, string _text)
         {
             var path = AppDomain.CurrentDomain.BaseDirectory + _fileName + ".txt";
@@ -345,7 +344,7 @@ namespace ioDelaunay
                 //fs.Write(data, 0, data.Length);
             }
         }
-        
+
         public static void LogTri(string _fileName, Delaunay.Triangle[] _tris, string _logAdder = "")
         {
             if (!Enabled) return;
