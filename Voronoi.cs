@@ -351,7 +351,7 @@ namespace ioSS.Delaunay
             var intPt = Vector2.positiveInfinity;
             for (var bEdgeIdx = 0; bEdgeIdx < 4; ++bEdgeIdx) //TODO this is inefficient
             {
-                var intsct = Intersect(_fromDir, vBndVecs[bEdgeIdx], _fromPt, vBndCorners[bEdgeIdx]);
+                var intsct = Geom.Intersect(_fromDir, vBndVecs[bEdgeIdx], _fromPt, vBndCorners[bEdgeIdx]);
                 //if (intsct.sqrMagnitude == float.PositiveInfinity) continue;
                 var distSqr = (intsct - _fromPt).sqrMagnitude;
                 if (distSqr < minDist)
@@ -365,19 +365,7 @@ namespace ioSS.Delaunay
             return intPt;
         }
 
-        private static Vector2 Intersect(Vector2 _rayA, Vector2 _rayB, Vector2 _originA, Vector2 _originB)
-        {
-            var dx = _originB.x - _originA.x;
-            var dy = _originB.y - _originA.y;
-            var det = _rayB.x * _rayA.y - _rayB.y * _rayA.x;
-            if (det == 0)
-                return Vector2.positiveInfinity;
-            var u = (dy * _rayB.x - dx * _rayB.y) / det;
-            var v = (dy * _rayA.x - dx * _rayA.y) / det;
-            if (u < 0 || v < 0)
-                return Vector2.positiveInfinity;
-            return new Vector2(_originA.x + _rayA.x * u, _originA.y + _rayA.y * u);
-        }
+        
 
         private enum BndSide
         {
