@@ -351,7 +351,7 @@ namespace ioSS.Delaunay
             var intPt = Vector2.positiveInfinity;
             for (var bEdgeIdx = 0; bEdgeIdx < 4; ++bEdgeIdx) //TODO this is inefficient
             {
-                var intsct = Geom.Intersect(_fromDir, vBndVecs[bEdgeIdx], _fromPt, vBndCorners[bEdgeIdx]);
+                var intsct = Geom.IntersectRays(_fromDir, vBndVecs[bEdgeIdx], _fromPt, vBndCorners[bEdgeIdx]);
                 //if (intsct.sqrMagnitude == float.PositiveInfinity) continue;
                 var distSqr = (intsct - _fromPt).sqrMagnitude;
                 if (distSqr < minDist)
