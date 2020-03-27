@@ -119,7 +119,7 @@ namespace ioSS.Delaunay
                 fPtDist(D.Points[lstPIdx[2]])
             };
 
-            for (var pIdx = 3; pIdx < D.Points.Count; ++pIdx)
+            for (var pIdx = 3; pIdx < D.Points.Length; ++pIdx)
             {
                 var pDist = fPtDist(D.Points[pIdx]);
                 if (pDist > lstPDist[2]) continue;
@@ -199,8 +199,8 @@ namespace ioSS.Delaunay
         private Vector2 CalcOrigin(out int[] _firstTriIdxs)
         {
             var cent = D.BoundsRect.center;
-            var pIdxArr = new int[D.Points.Count];
-            var pDistArr = new float[D.Points.Count];
+            var pIdxArr = new int[D.Points.Length];
+            var pDistArr = new float[D.Points.Length];
             for (var idx = 0; idx < pIdxArr.Length; ++idx)
             {
                 var dx = Math.Abs(cent.x - D.Points[idx].x);
@@ -248,7 +248,7 @@ namespace ioSS.Delaunay
                 {(cent - D.Points[2]).sqrMagnitude, 2}
             };
 
-            for (var idx = 3; idx < D.Points.Count; ++idx)
+            for (var idx = 3; idx < D.Points.Length; ++idx)
             {
                 var pt = D.Points[idx];
                 var distSqr = (cent - pt).sqrMagnitude;
@@ -426,7 +426,7 @@ namespace ioSS.Delaunay
         {
             int[] firstTriIdxs;
             var pts = D.Points;
-            var ptsCnt = pts.Count;
+            var ptsCnt = pts.Length;
             m_Origin = CalcOrigin(out firstTriIdxs);
             Func<float, int> keyHash;
             var thetaGroups = Frontier.ThetaGroup.BuildThetaGroups(ptsCnt, out keyHash);

@@ -11,10 +11,10 @@ namespace ioSS.Delaunay
     {
         #region Constructors
 
-        private Delaunay(List<Vector2> _points)
+        private Delaunay(Vector2[] _points)
         {
             //Set up random linear tranform coefficients for co-circular / degenerate case resolution.
-            var rnd = new Random(_points.Count);
+            var rnd = new Random();
             while (r11 == 0)
                 r11 = (float) rnd.NextDouble();
             while (r12 == 0)
@@ -69,7 +69,7 @@ namespace ioSS.Delaunay
         /// <summary>
         ///     List of points to triangulate
         /// </summary>
-        public List<Vector2> Points;
+        public Vector2[] Points;
 
         private int m_TriCount;
 
@@ -99,7 +99,7 @@ namespace ioSS.Delaunay
                     triIdxs[tIdx * 3 + 2] = tri.Edge2.OriginIdx;
                 }
 
-                return new Mesh(Points.ToArray(), triIdxs);
+                return new Mesh(Points, triIdxs);
             }
         }
 
@@ -118,7 +118,7 @@ namespace ioSS.Delaunay
         /// <param name="_points">Points to be triangulated</param>
         /// <typeparam name="T">Type of triangulator to use for triangulation</typeparam>
         /// <returns>Delaunay object ready for triangulation</returns>
-        public static Delaunay Create<T>(List<Vector2> _points)
+        public static Delaunay Create<T>(Vector2[] _points)
             where T : Triangulator, new()
         {
             var del = new Delaunay(_points);
@@ -148,7 +148,7 @@ namespace ioSS.Delaunay
         ///     Perform delaunay triangulation on specified list of points
         /// </summary>
         /// <param name="_points">Points to triangulate</param>
-        public void Triangulate(List<Vector2> _points)
+        public void Triangulate(Vector2[] _points)
         {
             Points = _points;
             Triangulate();
@@ -163,7 +163,7 @@ namespace ioSS.Delaunay
             ClearTris();
             BoundsRect = new Rect(Rect.zero);
 
-            for (var pIdx = 0; pIdx < Points.Count; ++pIdx)
+            for (var pIdx = 0; pIdx < Points.Length; ++pIdx)
                 BoundsRect.Encapsulate(Points[pIdx]);
 
             //calculate relative acceptable error and shift away from zero for triangulation
@@ -172,7 +172,7 @@ namespace ioSS.Delaunay
 
             //Determine minimum floating point error and degenerate transform scalar
             var min = w < h ? w : h;
-            MinFloatingPointErr = min / Points.Count * 0.01f; //TODO research best choice for MinFloatingPointErr
+            MinFloatingPointErr = min / Points.Length * 0.01f; //TODO research best choice for MinFloatingPointErr
             n = MinFloatingPointErr; //TODO research best choice for n
 
             //Shift points to avoid near zero floating point
@@ -184,7 +184,7 @@ namespace ioSS.Delaunay
             {
                 m_Shift = Vector2.zero - rectMin + Vector2.one;
 
-                for (var pIdx = 0; pIdx < Points.Count; ++pIdx)
+                for (var pIdx = 0; pIdx < Points.Length; ++pIdx)
                     Points[pIdx] += m_Shift;
 
                 BoundsRect.position += m_Shift;
@@ -200,7 +200,7 @@ namespace ioSS.Delaunay
             //Shift back
             if (doShift)
             {
-                for (var pIdx = 0; pIdx < Points.Count; ++pIdx)
+                for (var pIdx = 0; pIdx < Points.Length; ++pIdx)
                     Points[pIdx] -= m_Shift;
 
                 BoundsRect.position -= m_Shift;

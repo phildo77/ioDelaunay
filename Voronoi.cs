@@ -321,7 +321,7 @@ namespace ioSS.Delaunay
                     centroids.Add(centroid);
                 }
 
-                D.Triangulate(centroids);
+                D.Triangulate(centroids.ToArray());
                 Build();
                 TrimSitesToBndry(_trimBndy);
             }
